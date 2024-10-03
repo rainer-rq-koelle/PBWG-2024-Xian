@@ -46,6 +46,8 @@ read_zip <- function( .pth, .archive, .files = NULL, .path_unzip = "tmp_unzip"
     # #clean up (remove temp dir) -------------------------------------------
     unlink(.path_unzip, recursive = TRUE)
 
+    if(length(ds) == 1) ds <- ds[[1]]  # single element - return tibble
+
     return(ds)
 }
 

@@ -1,0 +1,29 @@
+---
+title: "Results - EUR"
+format: pdf
+---
+
+•	Predictability
+o	Departure punctuality (ICAO GANP KPI01);
+o	Arrival punctuality (ICAO GANP KPI14);
+o	Turnaround time (PBWG’s exploration);
+•	Efficiency
+o	Taxi-out additional time (ICAO GANP KPI02); 
+o	Additional time in terminal airspace (ICAO GANP KPI08);
+o	Taxi-in additional time (ICAO GANP KPI13);
+•	Capacity
+o	Peak capacity (ICAO GANP KPI09); 
+o	Peak throughput (ICAO GANP KPI10);
+o	Capacity utilisation (PBWG’s exploration).
+
+```{r}
+knitr::include_graphics("./figures/pbwg-apts-old.png")
+```
+
+America/ Brazil 	Sao Paulo Guarulhos (ICAO: SBGR, IATA: GRU), Sao Paulo Congonhas (ICAO: SBSP, IATA: CGH), Campinas Viracopos (ICAO: SBKP, IATA: VCP), Brasilia (ICAO: SBBR, IATA: BSB), Rio de Janeiro Santos Dumont (ICAO: SBRJ, IATA: SDU), Recife Guararapes (ICAO: SBRF, IATA: REC), Belo Horizonte Confins (ICAO: SBCF, IATA: CNF), and Salvador (ICAO: SBSV, IATA: SSA)
+America/ United States	La Guardia (ICAO: KLGA, IATA: LGA), Newark (ICAO: KEWR, IATA: EWR), New York John F. Kennedy (ICAO: KJFK, IATA: JFK), Philadelphia (ICAO: KPHL, IATA: PHL), Los Angeles (ICAO: KLAX, IATA: LAX), Charlotte (ICAO: KCLT, IATA: CLT), Chicago O’Hare (ICAO: KORD, IATA: ORD), and Atlanta (ICAO: KATL, IATA: ATL)
+Asia Pacific/ China	Shanghai Pudong International (ICAO: ZSPD, IATA: PVG), Shenzhen Bao’an International (ICAO: ZGSZ, IATA: SZX), Beijing Capital International (ICAO: ZBAA, IATA: PEK), Guangzhou Baiyun International (ICAO: ZGGG, IATA: CAN), Chongqing Jiangbei International (ICAO: ZUCK, IATA: CKG), Kumming Changshui International (ICAO: ZPPP, IATA: KMG), Chengdu Shuangliu International (ICAO: ZUUU, IATA: CTU), and  Xi’an Xianyang International (ICAO: ZLXY, IATA: XIY)
+Asia Pacific/ Japan	Narita (ICAO: RJAA , IATA: NRT), Haneda (ICAO: RJTT, IATA: HND)
+Asia Pacific/ Singapore 	Changi Airport (ICAO: WSSS, IATA: SIN)
+Asia Pacific/ Thailand	Suvarnabhumi Airport (ICAO: VTBS, IATA: BKK), Don Mueang Airport (ICAO: VTBD, IATA: DMK), Chiang Mai (ICAO: VTCC, IATA: CNX) and Phuket Airport (ICAO: VTSP, IATA: HKT)
+Europe	Amsterdam Schiphol (ICAO: EHAL, IATA: AMS), Paris Charles de Gaulle (ICAO: LFPG, IATA: CDG), Rome Fiumicino (ICAO: LIRF, IATA: FCO), Frankfurt Rhine/Main (ICAO: EDDF, IATA: FRA), London Heathrow (ICAO: EGLL, IATA: LHR), Madrid (ICAO: LEMD, IATA: MAD), Munich Franz-Josef Strauss (ICAO: EDDM, IATA: MUC), and Zurich (ICAO: LSZH, IATA: ZRH)

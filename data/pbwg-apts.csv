@@ -1,0 +1,41 @@
+REGION	REG_3	COUNTRY	NAME	ICAO	IATA
+America/ Brazil 	BRA	Brazil	Sao Paulo Guarulhos	SBGR	GRU
+America/ Brazil 	BRA	Brazil	Sao Paulo Congonhas 	SBSP	CGH
+America/ Brazil 	BRA	Brazil	Campinas Viracopos 	SBKP	VCP
+America/ Brazil 	BRA	Brazil	Brasilia 	SBBR,	BSB
+America/ Brazil 	BRA	Brazil	Rio de Janeiro Santos Dumont 	SBRJ	SDU
+America/ Brazil 	BRA	Brazil	Recife Guararapes	SBRF	REC
+America/ Brazil 	BRA	Brazil	Belo Horizonte Confins	SBCF	CNF
+America/ Brazil 	BRA	Brazil	Salvador	SBSV	SSA
+America/ United States	USA	United States	La Guardia	KLGA	LGA
+America/ United States	USA	United States	Newark	KEWR	EWR
+America/ United States	USA	United States	New York John F. Kennedy	KJFK	JFK
+America/ United States	USA	United States	Philadelphia	KPHL	PHL
+America/ United States	USA	United States	Los Angeles	KLAX	LAX
+America/ United States	USA	United States	Charlotte	KCLT	CLT
+America/ United States	USA	United States	Chicago O’Hare	KORD	ORD
+America/ United States	USA	United States	Atlanta	KATL	ATL
+Asia Pacific/ China	CHN	China	Shanghai Pudong International 	ZSPD	PVG
+Asia Pacific/ China	CHN	China	Shenzhen Bao’an International	ZGSZ	SZX
+Asia Pacific/ China	CHN	China	Beijing Capital International	ZBAA	PEK
+Asia Pacific/ China	CHN	China	Guangzhou Baiyun International	ZGGG	CAN
+Asia Pacific/ China	CHN	China	Chongqing Jiangbei International	ZUCK	CKG
+Asia Pacific/ China	CHN	China	Kumming Changshui International	ZPPP	KMG
+Asia Pacific/ China	CHN	China	Chengdu Shuangliu International (ICAO: ZUUU, IATA: CTU)	ZUUU	CTU
+Asia Pacific/ China	CHN	China	Xi’an Xianyang International	ZLXY	XIY
+Asia Pacific/ Japan	JPN	Japan	Narita	RJAA	NRT
+Asia Pacific/ Japan	JPN	Japan	Haneda	RJTT	HND
+Asia Pacific/ Singapore 	SIN	Singapore	Changi Airport	WSSS	SIN
+Asia Pacific/ Thailand	THA	Thailand	Suvarnabhumi Airport	VTBS	BKK
+Asia Pacific/ Thailand	THA	Thailand	Don Mueang Airport	VTBD	DMK
+Asia Pacific/ Thailand	THA	Thailand	Chiang Mai	VTCC	CNX
+Asia Pacific/ Thailand	THA	Thailand	Phuket Airport	VTSP	HKT
+Europe	EUR	Netherlands	Amsterdam Schiphol	EHAM	AMS
+Europe	EUR	France	Paris Charles de Gaulle	LFPG	CDG
+Europe	EUR	Italy	Rome Fiumicino	LIRF	FCO
+Europe	EUR	Germany	Frankfurt Rhine/Main	EDDF	FRA
+Europe	EUR	United Kingdom	London Heathrow	EGLL	LHR
+Europe	EUR	Spain	Madrid	LEMD	MAD
+Europe	EUR	Germany	Munich Franz-Josef Strauss	EDDM	MUC
+Europe	EUR	Switzerland	Zurich	LSZH	ZRH
+Europe	EUR	Turkiye	Istanbul	LTFM	IST

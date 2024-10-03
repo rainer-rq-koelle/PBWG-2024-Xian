@@ -1,0 +1,142 @@
+---
+title: "Global Flight Time Variability"
+format: 
+    pdf:
+        papersize: a4
+        toc: true
+        number-sections: true
+execute: 
+  freeze: true
+---
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+source("_chapter-defaults.R")
+```
+
+
+## Overview
+
+The trajectory-based operations concept describes an ATM environment where the flown flight path is as close as possible to the user-preferred flight path by reducing potential conflicts and resolving demand/capacity imbalances earlier and more efficiently.
+
+PBWG is interested in studying TBO. 
+As an initial step PWBG agreed to assess the flight time variability for flights operating between the study airports.
+
+## Data Preparation
+
+### PBWG - regions & study airports
+
+```{r}
+#apts_pbwg <- read_csv("./data/pbwg-apts.csv", )
+apts_pbwg <- readxl::read_xlsx("./data/pbwg-apts.xlsx")
+```
+
+
+### Global Connectivity
+
+Determine daily international connections between PBWG study airports.
+
+To-do: calculate share per region
+
+```{r}
+#| label: load-nm-flight-table
+#| eval: false
+
+nm_flt <- list(
+     yr_2023 = arrow::read_parquet("./data/nm-flt-2023.parquet")
+    ,yr_2024 = arrow::read_parquet("./data/nm-flt-2024-123.parquet")
+) |> bind_rows()
+
+nm_flt <- nm_flt |> 
+    mutate( ADEP_PBWG = ADEP %in% apts_pbwg$ICAO
+           ,ADES_PBWG = ADES %in% apts_pbwg$ICAO
+           ,.after = ADES)
+```
+
+```{r}
+#| label: prep-pbwg-connections
+#| eval: false
+
+pbwg_cons <- nm_flt |> 
+    filter(ADEP_PBWG, ADES_PBWG)
+
+intra_eur <- apts_pbwg |> filter(REG_3 == "EUR") |> pull(ICAO)
+intra_eur <- expand_grid(ADEP = intra_eur, ADES = intra_eur)
+
+pbwg_cons <- pbwg_cons |> 
+    anti_join(intra_eur, by = join_by(ADEP, ADES)) |>    # remove intra-EUR
+    mutate(
+        DOF = case_when(
+            ADEP_PBWG ~ date(AOBT)
+          , ADES_PBWG ~ date(AIBT)
+          , .default = NA)
+        )
+pbwg_cons |> arrow::write_parquet("./data/pbwg-cons-eur.parquet")
+```
+
+```{r}
+pbwg_cons <- arrow::read_parquet("./data/pbwg-cons-eur.parquet")
+apts_eur  <- apts_pbwg |> filter(REG_3 == "EUR") |> pull(ICAO)
+
+binned_cons <- pbwg_cons |> 
+    mutate(BIN = floor_date(DOF, unit = "week") ) |> 
+    group_by(ADES, ADEP, BIN) |> 
+    reframe(FLTS = n()) |> 
+    mutate(
+        PHASE = case_when(
+            ADES %in% apts_eur ~ "ARR"
+          , ADEP %in% apts_eur ~ "DEP"
+          , .default = NA)
+      ) |> 
+    drop_na()
+```
+
+```{r}
+binned_cons |> 
+    filter(ADES == "EDDF" | ADEP == "EDDF") |> 
+    ggplot() + 
+    geom_path(aes(x = BIN, y = FLTS, group = paste0(ADEP,"-", ADES))) + 
+    facet_wrap(. ~ PHASE) +
+    labs(x = element_blank())
+```
+
+For the case of Frankfurt international connectivity varies and we observe a higher number of connections outside the summer of 2024.
+For example KATL-EDDF accounted for 26 flights on a weekly basis in November and December 2023.
+
+```{r}
+apt <- "EGLL"
+binned_cons |> 
+    filter(ADES == apt | ADEP == apt) |> 
+    ggplot() + 
+    geom_path(aes(x = BIN, y = FLTS, group = paste0(ADEP,"-", ADES))) + 
+    facet_wrap(. ~ PHASE) +
+    labs(x = element_blank())
+```
+
+London Heathrow also shows some decreasing international connections between PBWG airports when comparing summer 2024 with summer 2023. 
+
+:::{.callout-note}
+Todo:
+
+* study evolution of international connectivity.
+
+:::
+
+## Test Data Sample
+
+Despite the variable connectivity, for an initial trial (in preparation for the PBWG Xi'an meeting), flights for the first 2 weeks of July 2024 were selected.
+
+Retrieve the system-internal unique identifier:
+
+```{r}
+start_date <- ymd("2024-07-01")
+end_date   <- start_date + days(14)
+
+uids_sample <- pbwg_cons |> 
+    filter(between(DOF, start_date, end_date)) 
+
+uids_sample |> select(SAM_ID) |> arrow::write_parquet("./data/sample-samids-eur.parquet")
+```
+
