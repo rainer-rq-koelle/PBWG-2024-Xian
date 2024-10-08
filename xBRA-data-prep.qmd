@@ -1,0 +1,153 @@
+---
+title: BRA Data Preparation
+format: 
+    pdf:
+        papersize: a4
+        toc: true
+        number-sections: true
+execute: 
+  freeze: true
+---
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+source("_chapter-defaults.R")
+
+# load utility files
+apts_pbwg <- readxl::read_xlsx("./data/pbwg-apts.xlsx")
+apts_eur  <- apts_pbwg |> filter(REG_3 == "EUR") |> pull(ICAO)
+apts_bra  <- apts_pbwg |> filter(REG_3 == "BRA")
+
+# data downloaded stored
+top_level_path <- here::here() |> dirname()
+bra_data_path  <- here::here(top_level_path, "__DATA", "BRA-EUR-hotdata")
+```
+
+Data obtained by DECEA --> https://drive.google.com/drive/folders/1gZloRgIM49SmPkFbi2-B89RUeFBwZsu3
+Downloaded to local drive for prep action.
+
+```{r}
+check_zip_content(here::here(bra_data_path), "Dados-BRA-2024.zip")
+```
+
+check input
+
+```{r}
+punc_bra <- read_zip(here::here(bra_data_path), "Dados-BRA-2024.zip", "Dados_2024/Monito_Tatico_2024.xlsx")
+punc_bra <- punc_bra |> 
+    mutate( SCHED_TIME = coerce_xlx_numeric_to_datetime(SCHED_TIME)
+           ,BLOCK_TIME = coerce_xlx_numeric_to_datetime(BLOCK_TIME)
+           )
+```
+
+```{r}
+mvt_bra <- list(
+    mvt_bra1 = read_zip(
+        here::here(bra_data_path)
+            , "Dados-BRA-2024.zip"
+            , "Dados_2024/TATIC_ano2024.xlsx") |> 
+    clean_mov_xlsx()
+
+   ,mvt_bra2 = read_zip(
+        here::here(bra_data_path)
+            , "Dados-BRA-2024.zip"
+            , "Dados_2024/TATIC_ano2024_2.xlsx") |> 
+    clean_mov_xlsx()
+)
+
+mvt_bra <- mvt_bra |> bind_rows() |> 
+    mutate(across( .cols = c(AOBT, ATOT, ALDT, AIBT)
+                  ,.fns  = ~ coerce_xlx_numeric_to_datetime(.x) )
+           )
+```
+
+
+
+## Global Flight Time Variability
+
+* SCHED and BLOCK TIME from punctuality data set
+* AOBT/ATOT and ALDT/AIBT from movement data
+
+```{r}
+start_date <- ymd("2024-06-17")
+end_date   <- start_date + days(14)
+
+gftv <- punc_bra |> 
+    filter(  (PHASE == "ARR" & ADEP %in% apts_eur) |
+             (PHASE == "DEP" & ADES %in% apts_eur)
+           ) |> 
+    filter(start_date <= date(SCHED_TIME), date(SCHED_TIME) <= end_date)
+
+# extract from punctualtity data and convert to milestone
+gftv <- gftv |> 
+    select(-ICAO)|> 
+    pivot_longer(cols = contains("TIME"), names_to = "MST", values_to = "TIME") |> 
+    mutate(
+        MST = case_when(
+            PHASE == "ARR" & MST == "SCHED_TIME" ~ "SIBT"
+          , PHASE == "ARR" & MST == "BLOCK_TIME" ~ "AIBT"
+          , PHASE == "DEP" & MST == "SCHED_TIME" ~ "SOBT"
+          , PHASE == "DEP" & MST == "BLOCK_TIME" ~ "AOBT"
+          , .default = NA)
+      , SRC = "BRA"
+        ) |> 
+    select(-PHASE)
+
+# extract from movement data
+gftv_mov <- mvt_bra |> 
+    select(FLTID, ICAO, PHASE, TYPE, AOBT, ATOT, ALDT, AIBT) |> 
+    filter(ICAO %in% apts_bra$ICAO) |> 
+    pivot_longer(  cols = c("AOBT","ATOT","ALDT","AIBT")
+                 , names_to = "MST", values_to = "TIME") |> 
+    mutate(  ADEP = if_else(PHASE == "DEP", ICAO, NA)
+           , ADES = if_else(PHASE == "ARR", ICAO, NA)) |> 
+    select(-ICAO, - PHASE) |> 
+    filter(!is.na(TIME)) |> 
+    mutate(TOFM_EUR = FLTID %in% gftv$FLTID
+           , SRC = "BRA") |> 
+    filter(TOFM_EUR) |> 
+    select(-TOFM_EUR) |> 
+    filter(between(TIME, start_date, end_date))
+```
+
+```{r}
+fbb <- bind_rows(gftv, gftv_mov)
+# fix
+fbb <- fbb |> rename(TIME_SRC = TIME) |> mutate(TIME = TIME_SRC - hours(24))
+```
+
+get the European flights
+
+```{r}
+gftv_eur <- arrow::read_parquet("./data/sample-apdf-eur-pbwg.parquet")
+
+apdf_to_mst <- function(.apdf){
+    arrs <- .apdf |> filter(PHASE == "ARR")
+    deps <- .apdf |> filter(PHASE == "DEP")
+    
+    sibts <- arrs |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = SCHED_TIME) |> mutate(MST = "SIBT", SRC = "EUR")
+    sobts <- deps |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = SCHED_TIME) |> mutate(MST = "SOBT", SRC = "EUR")
+    
+    aldts <- arrs |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = MVT_TIME) |> mutate(MST = "ALDT", SRC = "EUR")
+    atots <- deps |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = MVT_TIME) |> mutate(MST = "ATOT", SRC = "EUR")
+    
+    aibts <- arrs |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = BLOCK_TIME) |> mutate(MST = "AIBT", SRC = "EUR")
+    aobts <- deps |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = BLOCK_TIME) |> mutate(MST = "AOBT", SRC = "EUR")
+    
+    a100 <- arrs |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = C100_TIME) |> mutate(MST = "A100", SRC = "EUR")
+    d100 <- deps |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = C100_TIME) |> mutate(MST = "D100", SRC = "EUR")
+    
+    msts <- bind_rows(sibts, sobts, aldts, aibts, aobts, a100, d100)
+}
+
+gftv_eur <- gftv_eur |> apdf_to_mst()
+```
+
+BRA-EUR
+
+```{r}
+gftv_bra_eur <- bind_rows(fbb, gftv_eur)
+```
+
