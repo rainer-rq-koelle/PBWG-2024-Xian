@@ -1,0 +1,257 @@
+---
+title: "crunch airport data"
+format: html
+---
+
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+source("_chapter-defaults.R")
+
+library(tidyverse)
+
+# path to data
+pth_data <- here::here() |> dirname()
+pth_apdf <- here::here(pth_data, "__DATA","APDF")
+```
+
+```{r}
+source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
+
+apt <- "LTFM"
+fn_2023 <- check_zip_content(pth_apdf,"apdf-2023.zip") |> 
+    filter(grepl(pattern = apt, x = Name))
+ds_2023 <- read_zip(pth_apdf, "apdf-2023.zip", fn_2023$Name) |> 
+    trim_apdf_for_pbwg() |> 
+    make_nice_names_apdf()  |> 
+    append_dof()
+
+fn_2024 <- check_zip_content(pth_apdf,"apdf-2024-JanSep.zip") |> 
+    filter(grepl(pattern = apt, x = Name))
+ds_2024 <- read_zip(pth_apdf, "apdf-2024-JanSep.zip", fn_2024$Name) |> 
+    trim_apdf_for_pbwg() |> 
+    make_nice_names_apdf() |> 
+    append_dof()
+```
+
+
+# Daily Traffic
+
+output
+ICAO,DATE,ARRS,DEPS,SRC_NA,ARRS_REG,DEPS_REG,HEL,H,M,L,NA
+
+```{r}
+source("~/RProjects/PBWG-2024-Xian/R/apt-daily-stats.R")
+
+stats_2023 <- ds_2023 |> airport_daily_stats(.apt = apt, .yr = 2023)
+stats_2024 <- ds_2024 |> airport_daily_stats(.apt = apt, .yr = 2024)
+
+stats_2023 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2023.parquet"))
+stats_2024 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2024.parquet"))
+```
+
+
+# Taxi-In
+
+PBWG convention --> base year 2023
+
+```{r}
+txits_2023 <- ds_2023 |> filter(PHASE == "ARR") |> 
+    select(ICAO = ADES, PHASE, ALDT = MVT_TIME, AIBT = BLOCK_TIME, RWY, STND) |> 
+    mutate(TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()) |> 
+    filter(TXIT < 75)
+
+txits_2024 <- ds_2024 |> filter(PHASE == "ARR") |> 
+    select(ICAO = ADES, PHASE, ALDT = MVT_TIME, AIBT = BLOCK_TIME, RWY, STND) |> 
+    mutate(TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()) |> 
+    filter(TXIT < 75)
+ 
+refs_2023 <- txits_2023 |> 
+    group_by(STND, RWY) |> 
+    reframe(
+        SMPL = dplyr::n()
+        ,REF_MEAN = mean(TXIT, na.rm = TRUE)
+        ,REF_P20  = quantile(TXIT, probs = 0.2 , na.rm = TRUE)
+        ,REF_P05  = quantile(TXIT, probs = 0.05, na.rm = TRUE)
+        ,REF_P15  = quantile(TXIT, probs = 0.15, na.rm = TRUE)
+        ,REF_PBWG = (REF_P05 + REF_P15)/2
+        ) |> 
+    mutate(ICAO = apt, YEAR = 2023)
+```
+
+check coverage of txits in 2024
+LTFM about 192 unrecognised combinations
+
+```{r}
+out_fn <- paste0("./data/apt-txit-ref-", apt, ".csv")
+
+refs_2023 |> 
+    mutate(PHASE = "ARR") |> select(ICAO, YEAR, PHASE, everything()) |>
+    write_csv(out_fn)
+```
+
+output: ICAO,PHASE,DATE,MVTS,ADD_TIME,AVG_ADD_TIME
+
+```{r}
+refs <- read_csv(out_fn, show_col_types = FALSE) |> 
+    select(ICAO, PHASE, STND, RWY, REF = REF_PBWG)
+
+calc_txit <- function(.txits, .refs){
+    tmp <- .txits |> 
+        dplyr::left_join(.refs, by = dplyr::join_by(ICAO, PHASE, RWY, STND)) |> 
+        dplyr::mutate(
+             ADD_TIME = TXIT - REF
+            ,DATE = lubridate::date(AIBT)
+        )
+    tmp <- tmp |> dplyr::group_by(ICAO, PHASE, DATE) |> 
+        dplyr::reframe(
+            MVTS = sum(!is.na(ADD_TIME)) #dplyr::n()
+            , TOT_REF = sum(REF, na.rm = TRUE)
+            , TOT_ADD_TIME = sum(ADD_TIME, na.rm = TRUE)
+            , TX_NA = sum(is.na(ADD_TIME), na.rm = TRUE)
+            ) |> 
+        dplyr::mutate(AVG_ADD_TIME = TOT_ADD_TIME / MVTS)
+    return(tmp)
+}
+```
+
+```{r}
+tx <- txits_2023 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2023)
+tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2023.parquet"))
+
+tx <- txits_2024 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2024)
+tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2024.parquet"))
+```
+
+
+
+# Taxi-Out
+
+PBWG convention --> base year 2023
+
+```{r}
+txots_2023 <- ds_2023 |> filter(PHASE == "DEP") |> 
+    select(ICAO = ADEP, PHASE, ATOT = MVT_TIME, AOBT = BLOCK_TIME, RWY, STND) |> 
+    mutate(TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()) |> 
+    filter(TXOT < 180)
+
+txots_2024 <- ds_2024 |> filter(PHASE == "DEP") |> 
+    select(ICAO = ADEP, PHASE, ATOT = MVT_TIME, AOBT = BLOCK_TIME, RWY, STND) |> 
+    mutate(TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()) |> 
+    filter(TXOT < 180)
+ 
+refs_2023 <- txots_2023 |> 
+    group_by(PHASE, STND, RWY) |> 
+    reframe(
+        SMPL = dplyr::n()
+        ,REF_MEAN = mean(TXOT, na.rm = TRUE)
+        ,REF_P20  = quantile(TXOT, probs = 0.2 , na.rm = TRUE)
+        ,REF_P05  = quantile(TXOT, probs = 0.05, na.rm = TRUE)
+        ,REF_P15  = quantile(TXOT, probs = 0.15, na.rm = TRUE)
+        ,REF_PBWG = (REF_P05 + REF_P15)/2
+        ) |> 
+    mutate(ICAO = apt, YEAR = 2023)
+```
+
+check coverage of txots in 2024
+LTFM about 358 unrecognised combinations by Sept 2024 ~ 0.2%
+
+```{r}
+out_fn <- paste0("./data/apt-txot-ref-", apt, ".csv")
+
+refs_2023 |> select(ICAO, YEAR, PHASE, everything()) |>
+    write_csv(out_fn)
+```
+
+output: ICAO,PHASE,DATE,MVTS,ADD_TIME,AVG_ADD_TIME
+
+```{r}
+refs <- read_csv(out_fn, show_col_types = FALSE) |> 
+    select(ICAO, PHASE, STND, RWY, REF = REF_PBWG)
+
+calc_txot <- function(.txots, .refs){
+    tmp <- .txots |> 
+        dplyr::left_join(.refs, by = dplyr::join_by(ICAO, PHASE, RWY, STND)) |> 
+        dplyr::mutate(
+             ADD_TIME = TXOT - REF
+            ,DATE = lubridate::date(AOBT)
+        )
+    tmp <- tmp |> dplyr::group_by(ICAO, PHASE, DATE) |> 
+        dplyr::reframe(
+            MVTS = sum(!is.na(ADD_TIME)) #dplyr::n()
+            , TOT_REF = sum(REF, na.rm = TRUE)
+            , TOT_ADD_TIME = sum(ADD_TIME, na.rm = TRUE)
+            , TX_NA = sum(is.na(ADD_TIME), na.rm = TRUE)
+            ) |> 
+        dplyr::mutate(AVG_ADD_TIME = TOT_ADD_TIME / MVTS)
+    return(tmp)
+}
+```
+
+```{r}
+# write-out taxi-out times
+tx <- txots_2023 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2023)
+tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2023.parquet"))
+
+tx <- txots_2024 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2024)
+tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2024.parquet"))
+```
+
+
+
+
+
+
+
+# EUR Results 
+
+## Daily Traffic
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-tfc-[EL][A-Z]{3}", full.names = TRUE)
+
+tfc <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+tfc |> 
+    ggplot() +
+    geom_path(aes(x = DOF, y = ARRS + DEPS, group = lubridate::year(DOF))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "daily flights")
+```
+
+
+## Taxi-In Times
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-txit-[EL][A-Z]{3}", full.names = TRUE)
+
+txits <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+txits |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_ADD_TIME, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. taxi-in time")
+```
+
+## Taxi-Out Times
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-txot-[EL][A-Z]{3}", full.names = TRUE)
+
+txots <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+txots |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_ADD_TIME, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. taxi-out time")
+```
+
+
+

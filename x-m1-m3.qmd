@@ -1,0 +1,50 @@
+---
+title: "Trajectories"
+format: html
+---
+
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+source("_chapter-defaults.R")
+```
+
+```{r}
+# data path
+pth_data <- here::here(here::here() |> dirname(), "__DATA")
+pth_xian <- here::here(pth_data, "_xian")
+```
+
+get m1 and m3
+
+```{r}
+fns <- list.files(pth_xian, pattern = "^(m1|m3)_neu", full.names = TRUE)
+m1 <- arrow::read_parquet(file = fns[1])
+m3 <- arrow::read_parquet(file = fns[2])
+
+# from previous dabbling
+sample_ids <- arrow::read_parquet("./data/sample_tmp_ids.parquet")
+```
+
+
+```{r}
+sam_ids <- c(273566653, 273425458
+             ,273700254
+             )
+
+my_sample <- sample_ids |> pull(SAM_ID)
+
+what_ids <- my_sample #sam_ids
+
+tmp_m1 <- m1 |> filter(ID %in% what_ids) 
+tmp_m3 <- m3 |> filter(ID %in% what_ids)
+tmp_all <- bind_rows(tmp_m1, tmp_m3)
+
+tmp_all |> 
+    ggplot() +
+    geom_point(aes(x = ENTRY_LON, y = ENTRY_LAT, color = MODEL_TYPE)) +
+    geom_line( aes(x = ENTRY_LON, y = ENTRY_LAT, color = MODEL_TYPE, group = ID))
+```
+
