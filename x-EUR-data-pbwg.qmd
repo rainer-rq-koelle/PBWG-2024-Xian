@@ -52,6 +52,63 @@ stats_2023 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2023.parquet
 stats_2024 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2024.parquet"))
 ```
 
+# Punctuality
+
+## Arrival 
+
+```{r}
+source("~/RProjects/PBWG-2024-Xian/R/apt-punctuality-from-apdf.R")
+
+get_punc_arrs <- function(.apdf, .apt = apt, .yr = NULL){
+    tmp <-  .apdf |> filter(PHASE == "ARR", CLASS != "HEL") |> 
+    mutate(ICAO = .apt) |> 
+    add_delay_and_dlygrp() |> 
+    pivot_daily_dly_by_grp() |> 
+    calc_earlylatewithin_bins()
+    
+    if(!is.null(.yr)) tmp <- tmp |> 
+            filter(lubridate::year(DATE) == .yr)
+    
+    return(tmp)
+}
+
+punc_arrs_2023 <- get_punc_arrs(ds_2023, apt, 2023)
+punc_arrs_2024 <- get_punc_arrs(ds_2024, apt, 2024)
+```
+
+write out arrival punctuality
+
+```{r}
+punc_arrs_2023 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2023.parquet"))
+punc_arrs_2024 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2024.parquet"))
+```
+
+## Departure
+
+```{r}
+get_punc_deps <- function(.apdf, .apt = apt, .yr = NULL){
+    tmp <-  .apdf |> filter(PHASE == "DEP", CLASS != "HEL") |> 
+    mutate(ICAO = .apt) |> 
+    add_delay_and_dlygrp() |> 
+    pivot_daily_dly_by_grp() |> 
+    calc_earlylatewithin_bins()
+    
+    if(!is.null(.yr)) tmp <- tmp |> 
+            filter(lubridate::year(DATE) == .yr)
+    
+    return(tmp)
+}
+
+punc_deps_2023 <- get_punc_deps(ds_2023, apt, 2023)
+punc_deps_2024 <- get_punc_deps(ds_2024, apt, 2024)
+```
+
+write out departure punctuality
+
+```{r}
+punc_deps_2023 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2023.parquet"))
+punc_deps_2024 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2024.parquet"))
+```
 
 # Taxi-In
 
@@ -524,6 +581,41 @@ tfc |>
     geom_path(aes(x = DOF, y = ARRS + DEPS, group = lubridate::year(DOF))) + 
     facet_wrap(. ~ ICAO) +
     labs(x = element_blank(), y = "daily flights")
+```
+
+## Punctuality
+
+### Arrival Punctuality
+
+```{r}
+fns <- list.files(path = "./data", pattern = "^apt-punc-arr-[EL][A-Z]{3}", full.names = TRUE)
+
+punc_arrs <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+punc_arrs |> arrange(DATE) |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = `Within (-15,15)`/ VALID, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "arr punctuality within 15 min")
+
+```
+
+### Departure Punctuality
+
+```{r}
+fns <- list.files(path = "./data", pattern = "^apt-punc-dep-[EL][A-Z]{3}", full.names = TRUE)
+
+punc_deps <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+punc_deps |> arrange(DATE) |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = `Within (-15,15)`/ VALID, group = lubridate::year(DATE))) + 
+    scale_y_continuous(limits = c(0,NA)) +
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "arr punctuality within 15 min")
+
 ```
 
 
