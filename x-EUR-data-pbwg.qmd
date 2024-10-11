@@ -200,6 +200,310 @@ tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2024.parquet"))
 ```
 
 
+# ASMA
+
+```{r}
+extract_asma_payload <- function(.apdf, .apt = apt, .yr = NULL){
+    tmp <- .apdf |> 
+        dplyr::filter(ADES == .apt) |> 
+        dplyr::select(ICAO = ADES, PHASE, CLASS, MVT_TIME, RWY, contains("C40"), contains("C100")) |> 
+        dplyr::mutate(
+            A40  = difftime(MVT_TIME, C40_TIME,  units = "mins") |> as.numeric()
+           ,A100 = difftime(MVT_TIME, C100_TIME, units = "mins") |> as.numeric()
+            )
+    if(!is.null(.yr)) tmp <- tmp |> dplyr::filter(lubridate::year(MVT_TIME) == .yr)
+    tmp
+}
+
+
+asma_2023 <- ds_2023 |> extract_asma_payload(apt, 2023) 
+asma_2024 <- ds_2024 |> extract_asma_payload(apt, 2024)
+```
+
+establish ASMA sectors
+
+```{r}
+check_asma_sector <- function(.asma_payload, .sect = sect, .binwidth = 6){
+    this_apt   <- unique(.asma_payload$ICAO)
+    this_phase <- unique(.asma_payload$PHASE)
+    
+    check_vis <- .asma_payload |> 
+        pivot_longer(cols = c("C40_BRG","C100_BRG"), names_to = "RANGE", values_to = "BRG") |> 
+        ggplot() +
+        geom_histogram(aes(x = BRG), binwidth = 3) +
+        geom_vline(xintercept = sect, linetype = "dotdash", color = "blue") +
+        facet_wrap(.~ RANGE) +
+        labs(title = paste0(this_apt, " - ASMA sectors - "))
+    
+    return(check_vis)    
+}
+```
+
+```{r}
+if(apt == "EDDM") sect <- c(75, 165, 220, 265, 330)     # done
+if(apt == "EDDF") sect <- c(0,100,140,215,300,360)      # done
+if(apt == "EGLL") sect <- c(0,110,170,230,300,360)      # done
+if(apt == "EGKK") sect <- c(0,105,180,300,360)          # done
+if(apt == "EHAM") sect <- c(0,70,150,250,310,360)       # done
+if(apt == "LFPG") sect <- c(0,90,180,270,360)           # done
+if(apt == "LEMD") sect <- c(0,20, 50,95,150, 200, 260,330, 360) # done
+if(apt == "LEBL") sect <- c(35, 80, 115, 215, 255, 330)         # check issue with 2022
+if(apt == "LIRF") sect <- c(0, 50, 90, 185, 285, 335, 360) # done
+if(apt == "LSZH") sect <- c(0,50,115,195,265,340,360)   # done 
+
+if(apt == "LTFM") sect <- c(0, 35,90, 180, 325)
+if(apt == "EFHK") sect <- c(0, 35,85, 130, 290)
+
+sect <- c(0, sect, 360) |> unique()
+```
+
+```{r}
+asma_2023 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_asma_sector()
+```
+
+```{r}
+refs <- asma_2023 |>
+  drop_na() |> 
+  mutate( C40_SECT  = cut(C40_BRG,  breaks = sect)
+         ,C100_SECT = cut(C100_BRG, breaks = sect) 
+         , A40      = difftime(MVT_TIME, C40_TIME, units = "mins") |> as.numeric()
+         , A100     = difftime(MVT_TIME, C100_TIME,units = "mins") |> as.numeric()
+         ) 
+
+# to-do - wrap 40NM or 100NM in helper function
+ref40 <- refs  |> 
+  group_by(CLASS, RWY, C40_SECT) |> 
+  summarise(N = n()
+            , REF_P20 = quantile(A40, probs = 0.2)
+            , REF_P05 = quantile(A40, probs = 0.05)
+            , REF_P15 = quantile(A40, probs = 0.15)
+            , .groups = "drop") |> 
+  mutate(ICAO = apt, RANGE = "40NM"
+         , REF_PBWG = (REF_P05 + REF_P15)/2
+         ) |> 
+  select(ICAO, RANGE, everything()) |> 
+  drop_na()
+
+
+ref100 <- refs  |> 
+  group_by(CLASS, RWY, C100_SECT) |> 
+  summarise(N = n()
+            , REF_P20 = quantile(A100, probs = 0.2)
+            , REF_P05 = quantile(A100, probs = 0.05)
+            , REF_P15 = quantile(A100, probs = 0.15)
+            , .groups = "drop") |> 
+  mutate(ICAO = apt, RANGE = "100NM"
+          , REF_PBWG = (REF_P05 + REF_P15)/2
+         ) |> 
+  select(ICAO, RANGE, everything()) |> 
+  drop_na()
+```
+
+write out reference times for ASMA
+
+```{r}
+out_asma_fn <- paste0("./data/apt-asma-ref-", apt, ".csv") 
+
+bind_rows(ref40, ref100) |> 
+    mutate(PHASE = "ARR") |> 
+  write_csv(out_asma_fn)
+```
+
+calculate ASMA 
+Airport	Date	Number of Flights	Arrival Runway Configuration	Entry Fix_Sector	WTC	Total ASMA travel time	Total ASMA reference time	Total additional ASMA time	Average additional ASMA time
+```{r}
+asma_refs <- read_csv(out_asma_fn, show_col_types = FALSE) |> 
+    filter(!is.na(C100_SECT)) |> 
+    select(ICAO, PHASE, RANGE, CLASS, RWY, C100_SECT, REF = REF_PBWG)
+
+prep_asma <- function(.asma, .refs = asma_refs){ 
+    tmp <- .asma |> 
+        select(ICAO, PHASE, CLASS, RWY, MVT_TIME, A100, C100_BRG) |> 
+        drop_na() |> 
+        mutate(
+             DATE = lubridate::date(MVT_TIME)
+            ,C100_SECT = cut(C100_BRG, breaks = sect) 
+            ) |> 
+        left_join(asma_refs, by = join_by(ICAO, PHASE, CLASS, RWY, C100_SECT)) |> 
+        mutate(ADD_ASMA = A100 - REF)
+    return(tmp)
+}
+
+pbwg_asma_daily <- function(.prepped_asma){
+    tmp <- .prepped_asma |> 
+        dplyr::group_by(ICAO, DATE, PHASE, CLASS, RWY, C100_SECT) |> 
+        dplyr::reframe(
+            FLTS = n()
+            , TOT_A100 = sum(A100, na.rm = TRUE)
+            , TOT_REF = sum(REF, na.rm = TRUE)
+            , TOT_ADD = sum(ADD_ASMA, na.rm = TRUE)
+            )
+    return(tmp)
+}
+
+```
+
+```{r}
+asma_2023 |> prep_asma() |> pbwg_asma_daily() |> 
+    arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2023.parquet"))
+
+asma_2024 |> prep_asma() |> pbwg_asma_daily() |> 
+    arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2024.parquet"))
+```
+
+
+# DSMA
+
+```{r}
+extract_dsma_payload <- function(.apdf, .apt = apt, .yr = NULL){
+    tmp <- .apdf |> 
+        dplyr::filter(ADEP == .apt) |> 
+        dplyr::select(ICAO = ADEP, PHASE, CLASS, MVT_TIME, RWY, contains("C40"), contains("C100")) |> 
+        dplyr::mutate(
+            D40  = difftime(C40_TIME,  MVT_TIME,  units = "mins") |> as.numeric()
+           ,D100 = difftime(C100_TIME, MVT_TIME,  units = "mins") |> as.numeric()
+            )
+    if(!is.null(.yr)) tmp <- tmp |> dplyr::filter(lubridate::year(MVT_TIME) == .yr)
+    tmp
+}
+
+
+dsma_2023 <- ds_2023 |> extract_dsma_payload(apt, 2023) 
+dsma_2024 <- ds_2024 |> extract_dsma_payload(apt, 2024)
+```
+
+establish DSMA sectors
+
+```{r}
+check_dsma_sector <- function(.dsma_payload, .sect = sect, .binwidth = 6){
+    this_apt   <- unique(.dsma_payload$ICAO)
+    this_phase <- unique(.dsma_payload$PHASE)
+    
+    check_vis <- .dsma_payload |> 
+        pivot_longer(cols = c("C40_BRG","C100_BRG"), names_to = "RANGE", values_to = "BRG") |> 
+        ggplot() +
+        geom_histogram(aes(x = BRG), binwidth = 3) +
+        geom_vline(xintercept = sect, linetype = "dotdash", color = "blue") +
+        facet_wrap(.~ RANGE) +
+        labs(title = paste0(this_apt, " - DSMA sectors - "))
+    
+    return(check_vis)    
+}
+```
+
+```{r}
+# if(apt == "EDDM") sect <- c(75, 165, 220, 265, 330)     # done
+# if(apt == "EDDF") sect <- c(0,100,140,215,300,360)      # done
+# if(apt == "EGLL") sect <- c(0,110,170,230,300,360)      # done
+# if(apt == "EGKK") sect <- c(0,105,180,300,360)          # done
+# if(apt == "EHAM") sect <- c(0,70,150,250,310,360)       # done
+# if(apt == "LFPG") sect <- c(0,90,180,270,360)           # done
+# if(apt == "LEMD") sect <- c(0,20, 50,95,150, 200, 260,330, 360) # done
+# if(apt == "LEBL") sect <- c(35, 80, 115, 215, 255, 330)         # check issue with 2022
+# if(apt == "LIRF") sect <- c(0, 50, 90, 185, 285, 335, 360) # done
+# if(apt == "LSZH") sect <- c(0,50,115,195,265,340,360)   # done 
+# 
+if(apt == "LTFM") sect <- c(0,90, 180, 280,360)
+# if(apt == "EFHK") sect <- c(0, 35,85, 130, 290)
+
+sect <- c(0, sect, 360) |> unique()
+```
+
+```{r}
+dsma_2023 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_dsma_sector()
+```
+
+```{r}
+refs <- dsma_2023 |>
+  drop_na() |> 
+  mutate( C40_SECT  = cut(C40_BRG,  breaks = sect)
+         ,C100_SECT = cut(C100_BRG, breaks = sect) 
+         ) 
+
+# to-do - wrap 40NM or 100NM in helper function
+ref40 <- refs  |> 
+  group_by(CLASS, RWY, C40_SECT) |> 
+  summarise(N = n()
+            , REF_P20 = quantile(D40, probs = 0.2)
+            , REF_P05 = quantile(D40, probs = 0.05)
+            , REF_P15 = quantile(D40, probs = 0.15)
+            , .groups = "drop") |> 
+  mutate(ICAO = apt, RANGE = "40NM"
+         , REF_PBWG = (REF_P05 + REF_P15)/2
+         ) |> 
+  select(ICAO, RANGE, everything()) |> 
+  drop_na()
+
+
+ref100 <- refs  |> 
+  group_by(CLASS, RWY, C100_SECT) |> 
+  summarise(N = n()
+            , REF_P20 = quantile(D100, probs = 0.2)
+            , REF_P05 = quantile(D100, probs = 0.05)
+            , REF_P15 = quantile(D100, probs = 0.15)
+            , .groups = "drop") |> 
+  mutate(ICAO = apt, RANGE = "100NM"
+          , REF_PBWG = (REF_P05 + REF_P15)/2
+         ) |> 
+  select(ICAO, RANGE, everything()) |> 
+  drop_na()
+```
+
+write out reference times for DSMA
+
+```{r}
+out_dsma_fn <- paste0("./data/apt-dsma-ref-", apt, ".csv") 
+
+bind_rows(ref40, ref100) |> 
+    mutate(PHASE = "DEP") |> 
+  write_csv(out_dsma_fn)
+```
+
+
+```{r}
+dsma_refs <- read_csv(out_dsma_fn, show_col_types = FALSE) |> 
+    filter(!is.na(C100_SECT)) |> 
+    select(ICAO, PHASE, RANGE, CLASS, RWY, C100_SECT, REF = REF_PBWG)
+
+prep_dsma <- function(.dsma, .refs = dsma_refs, .sect = sect){ 
+    tmp <- .dsma |> 
+        select(ICAO, PHASE, CLASS, RWY, MVT_TIME, D100, C100_BRG) |> 
+        drop_na() |> 
+        mutate(
+             DATE = lubridate::date(MVT_TIME)
+            ,C100_SECT = cut(C100_BRG, breaks = .sect) 
+            ) |> 
+        left_join(.refs, by = join_by(ICAO, PHASE, CLASS, RWY, C100_SECT)) |> 
+        mutate(ADD_DSMA = D100 - REF)
+    return(tmp)
+}
+
+pbwg_dsma_daily <- function(.prepped_dsma){
+    tmp <- .prepped_dsma |> 
+        dplyr::group_by(ICAO, DATE, PHASE, CLASS, RWY, C100_SECT) |> 
+        dplyr::reframe(
+            FLTS = n()
+            , TOT_D100 = sum(D100, na.rm = TRUE)
+            , TOT_REF = sum(REF, na.rm = TRUE)
+            , TOT_ADD = sum(ADD_DSMA, na.rm = TRUE)
+            )
+    return(tmp)
+}
+
+```
+
+```{r}
+dsma_2023 |> prep_dsma() |> 
+    filter(ADD_DSMA < 60) |>
+    pbwg_dsma_daily() |> 
+     arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2023.parquet"))
+
+dsma_2024 |> prep_dsma() |> 
+    filter(ADD_DSMA < 60) |>
+    pbwg_dsma_daily() |> 
+     arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2024.parquet"))
+```
+
 
 
 
@@ -253,5 +557,42 @@ txots |>
     labs(x = element_blank(), y = "avg. taxi-out time")
 ```
 
+## Additional ASMA Time
 
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-asma-[EL][A-Z]{3}", full.names = TRUE)
 
+asmas <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+daily_asma <- asmas |> 
+    group_by(ICAO, DATE, PHASE) |> 
+    reframe(across(c(FLTS, TOT_A100, TOT_REF, TOT_ADD), .fns = sum)) |> 
+    mutate(AVG_ASMA = TOT_ADD / FLTS)
+
+daily_asma |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_ASMA, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. add. ASMA time")
+```
+
+## Additional ASMA Time
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-dsma-[EL][A-Z]{3}", full.names = TRUE)
+
+dsmas <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+daily_dsma <- dsmas |> 
+    group_by(ICAO, DATE, PHASE) |> 
+    reframe(across(c(FLTS, TOT_D100, TOT_REF, TOT_ADD), .fns = sum)) |> 
+    mutate(AVG_DSMA = TOT_ADD / FLTS)
+
+daily_dsma |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_DSMA, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. add. DSMA time")
+```

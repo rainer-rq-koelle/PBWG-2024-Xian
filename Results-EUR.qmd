@@ -8,9 +8,11 @@ o	Departure punctuality (ICAO GANP KPI01);
 o	Arrival punctuality (ICAO GANP KPI14);
 o	Turnaround time (PBWG’s exploration);
 •	Efficiency
-o	Taxi-out additional time (ICAO GANP KPI02); 
-o	Additional time in terminal airspace (ICAO GANP KPI08);
 o	Taxi-in additional time (ICAO GANP KPI13);
+o	Taxi-out additional time (ICAO GANP KPI02); 
+o	Additional ARRIVAL time in terminal airspace (ICAO GANP KPI08);
+o	Additional DEP time in terminal airspace (DSMA);
+
 •	Capacity
 o	Peak capacity (ICAO GANP KPI09); 
 o	Peak throughput (ICAO GANP KPI10);
