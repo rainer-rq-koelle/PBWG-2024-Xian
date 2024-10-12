@@ -61,6 +61,10 @@ source("~/RProjects/PBWG-2024-Xian/R/xhelp-check-vars.R")
 ds_2023 |> calc_throughput("15 min") |> arrange(BIN) |> 
     filter(lubridate::year(BIN) == 2023) |> 
     arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2023.parquet"))
+
+ds_2024 |> calc_throughput("15 min") |> arrange(BIN) |> 
+    filter(lubridate::year(BIN) == 2024) |> 
+    arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2024.parquet"))
 ```
 
 
