@@ -52,6 +52,18 @@ stats_2023 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2023.parquet
 stats_2024 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2024.parquet"))
 ```
 
+# Throughput
+
+```{r}
+source("~/RProjects/PBWG-2024-Xian/R/apt-throughput.R")
+source("~/RProjects/PBWG-2024-Xian/R/xhelp-check-vars.R")
+
+ds_2023 |> calc_throughput("15 min") |> arrange(BIN) |> 
+    filter(lubridate::year(BIN) == 2023) |> 
+    arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2023.parquet"))
+```
+
+
 # Punctuality
 
 ## Arrival 
@@ -581,6 +593,28 @@ tfc |>
     geom_path(aes(x = DOF, y = ARRS + DEPS, group = lubridate::year(DOF))) + 
     facet_wrap(. ~ ICAO) +
     labs(x = element_blank(), y = "daily flights")
+```
+
+## Total Throughput
+
+The quarter hour peak throughput is calculated as the 95th percentile of the total movements observed on a 15 minute basis.
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-thrus-[EL][A-Z]{3}", full.names = TRUE)
+
+thrus <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+peak_thrus <- thrus |> mutate(YEAR = lubridate::year(BIN)) |> 
+    group_by(ICAO, YEAR) |> 
+    summarise(N = n(), PK_TOT_THRU = quantile(FLTS, probs = 0.95)) |> 
+    mutate(YEAR = as.character(YEAR))
+
+peak_thrus |> 
+    ggplot() +
+    geom_col(aes(x = ICAO, y = PK_TOT_THRU, group = YEAR, fill = YEAR), position = position_dodge2()) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "peak total throughput")
 ```
 
 ## Punctuality

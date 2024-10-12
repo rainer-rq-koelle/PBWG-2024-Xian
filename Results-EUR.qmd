@@ -4,8 +4,8 @@ format: pdf
 ---
 
 •	Predictability
-o	Departure punctuality (ICAO GANP KPI01);
-o	Arrival punctuality (ICAO GANP KPI14);
+o	Departure punctuality (ICAO GANP KPI01);       DONE/LTFM
+o	Arrival punctuality (ICAO GANP KPI14);         DONE/LTFM
 o	Turnaround time (PBWG’s exploration);
 •	Efficiency
 o	Taxi-in additional time (ICAO GANP KPI13);
@@ -29,3 +29,79 @@ Asia Pacific/ Japan	Narita (ICAO: RJAA , IATA: NRT), Haneda (ICAO: RJTT, IATA: H
 Asia Pacific/ Singapore 	Changi Airport (ICAO: WSSS, IATA: SIN)
 Asia Pacific/ Thailand	Suvarnabhumi Airport (ICAO: VTBS, IATA: BKK), Don Mueang Airport (ICAO: VTBD, IATA: DMK), Chiang Mai (ICAO: VTCC, IATA: CNX) and Phuket Airport (ICAO: VTSP, IATA: HKT)
 Europe	Amsterdam Schiphol (ICAO: EHAL, IATA: AMS), Paris Charles de Gaulle (ICAO: LFPG, IATA: CDG), Rome Fiumicino (ICAO: LIRF, IATA: FCO), Frankfurt Rhine/Main (ICAO: EDDF, IATA: FRA), London Heathrow (ICAO: EGLL, IATA: LHR), Madrid (ICAO: LEMD, IATA: MAD), Munich Franz-Josef Strauss (ICAO: EDDM, IATA: MUC), and Zurich (ICAO: LSZH, IATA: ZRH)
+
+
+
+# Traffic Characterisation
+
+## Air traffic Evolution
+
+network level - normalised
+
+## Peak Day Operations
+
+colum chart refernce as solid line
+
+## Fleet Mix
+
+coloured bar chart - heavy/medium/light (H: green, M: blue, L: red)
+
+# Predictability
+
+## OTP
+
+* arrival OTP
+* departure OTP
+
+colored bar chart - ref year
+
+comparison x:arrival OTP y: dep OTP
+
+## Punctuality
+
+colored barchart
+(-INF, -15]
+
+## Early Arrivals
+
+arriving 15 min or more ahead of schedule
+colored bar chart - ref
+
+## Departure Punctuality
+colored barchart
+
+# Effiency
+
+## Add. TXOT
+
+colored barchart - ref
+
+## add. TXIT
+
+colored barchart
+
+## add. time in arrival airspace
+
+colored barchart
+
+## DSMA
+
+colored barchart
+
+# Capacity
+
+## airport peak capacity
+
+colored barchart ref/static
+
+## airport peak throughput
+
+Quarter Hour Total throughout
+
+## comparison peak capacity vs peak throughput
+
+dodged barchart
+
+delta: throughput - capacity
+
+
