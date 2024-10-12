@@ -20,7 +20,7 @@ pth_apdf <- here::here(pth_data, "__DATA","APDF")
 ```{r}
 source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
 
-apt <- "LEMD"
+apt <- "LSZH"
 
 fn_2023 <- check_zip_content(pth_apdf,"apdf-2023.zip") |> 
     filter(grepl(pattern = apt, x = Name))
@@ -311,9 +311,7 @@ check_asma_sector <- function(.asma_payload, .sect = sect, .binwidth = 6){
     
     return(check_vis)    
 }
-```
 
-```{r}
 # ASMA sectorisation
 
 if(apt == "EDDM") sect <- c(90, 220, 300)     # done
@@ -325,7 +323,7 @@ if(apt == "LFPG") sect <- c(0,90,180,270,360)           # done
 if(apt == "LEMD") sect <- c(0,80, 170, 260, 360) # done
 #if(apt == "LEBL") sect <- c(35, 80, 115, 215, 255, 330)         # check issue with 2022
 if(apt == "LIRF") sect <- c(0, 45, 90, 150, 215, 285, 360) # done
-if(apt == "LSZH") sect <- c(0,50,115,195,265,340,360)   # done 
+if(apt == "LSZH") sect <- c(0,50,120,190,260, 330, 360)   # done 
 
 if(apt == "LTFM") sect <- c(0, 35,90, 180, 325)
 # if(apt == "EFHK") sect <- c(0, 35,85, 130, 290)
@@ -463,9 +461,7 @@ check_dsma_sector <- function(.dsma_payload, .sect = sect, .binwidth = 6){
     
     return(check_vis)    
 }
-```
 
-```{r}
 # DSMA sectorisation
 
 if(apt == "EDDM") sect <- c(75, 150, 220,360)     # done
@@ -477,7 +473,7 @@ if(apt == "LFPG") sect <- c(0,50,130,225,300,360)       # done
 if(apt == "LEMD") sect <- c(0,70,220, 300, 360) # done
 #if(apt == "LEBL") sect <- c(35, 80, 115, 215, 255, 330)         # check issue with 2022
 if(apt == "LIRF") sect <- c(0, 50, 130, 230, 300, 360) # done
-if(apt == "LSZH") sect <- c(0,50,115,195,265,340,360)   # done
+if(apt == "LSZH") sect <- c(0,65,200,330,360)   # done
 
 if(apt == "LTFM") sect <- c(0,90, 180, 280,360)
 #if(apt == "EFHK") sect <- c(0, 35,85, 130, 290)
