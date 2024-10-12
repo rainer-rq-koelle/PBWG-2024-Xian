@@ -20,7 +20,7 @@ pth_apdf <- here::here(pth_data, "__DATA","APDF")
 ```{r}
 source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
 
-apt <- "LIRF"
+apt <- "EDDM"
 
 fn_2023 <- check_zip_content(pth_apdf,"apdf-2023.zip") |> 
     filter(grepl(pattern = apt, x = Name))
@@ -314,8 +314,10 @@ check_asma_sector <- function(.asma_payload, .sect = sect, .binwidth = 6){
 ```
 
 ```{r}
-if(apt == "EDDM") sect <- c(75, 165, 220, 265, 330)     # done
-if(apt == "EDDF") sect <- c(0,100,140,215,300,360)      # done
+# ASMA sectorisation
+
+if(apt == "EDDM") sect <- c(90, 220, 300)     # done
+if(apt == "EDDF") sect <- c(0,50,170,280,360)      # done
 if(apt == "EGLL") sect <- c(0,110,170,230,300,360)      # done
 if(apt == "EGKK") sect <- c(0,105,180,300,360)          # done
 if(apt == "EHAM") sect <- c(0,150,250,360)       # done
@@ -466,8 +468,8 @@ check_dsma_sector <- function(.dsma_payload, .sect = sect, .binwidth = 6){
 ```{r}
 # DSMA sectorisation
 
-if(apt == "EDDM") sect <- c(75, 165, 220, 265, 330)     # done
-if(apt == "EDDF") sect <- c(0,100,140,215,300,360)      # done
+if(apt == "EDDM") sect <- c(75, 150, 220,360)     # done
+if(apt == "EDDF") sect <- c(0,210,265,360)      # done
 if(apt == "EGLL") sect <- c(0,130,200,265,315,360)      # done
 #if(apt == "EGKK") sect <- c(0,105,180,300,360)          # not for Xian
 if(apt == "EHAM") sect <- c(0,75,145,230,280,360)       # done
