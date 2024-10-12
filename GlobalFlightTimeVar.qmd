@@ -31,7 +31,38 @@ As an initial step PWBG agreed to assess the flight time variability for flights
 ```{r}
 #apts_pbwg <- read_csv("./data/pbwg-apts.csv", )
 apts_pbwg <- readxl::read_xlsx("./data/pbwg-apts.xlsx")
+apts_pbwg_latlon <- read_csv("data/pbwg-apts-ourairports.csv", show_col_types = F)
+
+apts_latlon <- apts_pbwg_latlon |> select(ICAO = ident, LAT = latitude_deg, LON = longitude_deg, CTRY = iso_country)
+
+cps <- expand_grid(ICAO1 = apts_pbwg$ICAO, ICAO2 = apts_pbwg$ICAO) |> 
+    left_join(apts_pbwg |> select(ICAO, REG = REG_3), by = join_by("ICAO1"=="ICAO")) |> 
+    rename(REG1 = REG) |> 
+    left_join(apts_pbwg |> select(ICAO, REG = REG_3), by = join_by("ICAO2"=="ICAO")) |> 
+    filter(! REG1 == REG)
+cps <- cps |> 
+    left_join((apts_latlon |> select(ICAO1 = ICAO, LAT, LON)), by = join_by(ICAO1)) 
+cps <- cps |> rename(LAT1 = LAT, LON1 = LON)
+cps <- cps |> 
+    left_join((apts_latlon |> select(ICAO2 = ICAO, LAT, LON)), by = join_by(ICAO2))
+
+# alphabetical sorted aerdrome pairs
+cps <- cps |> rowwise() |> 
+    mutate(AD_PAIR = sort(c(ICAO1,ICAO2)) |> paste(collapse = "-")) |> 
+    ungroup() |> 
+    filter(AD_PAIR == paste0(ICAO1,"-",ICAO2))
+# GCDs
+cps <- cps |> mutate(GCD = geosphere::distHaversine(cbind(LON1, LAT1), cbind(LON, LAT)), GCD = GCD / 1852)
 ```
+
+```{r}
+ad_pairs <- c("WSSS-ZGGG", "LEMD-SBGR")
+
+cps |> filter(AD_PAIR %in% ad_pairs) |> 
+    ggplot() +
+    geom_col(aes(x = GCD, y = AD_PAIR))
+```
+
 
 
 ### Global Connectivity
@@ -139,4 +170,3 @@ uids_sample <- pbwg_cons |>
 
 uids_sample |> select(SAM_ID) |> arrow::write_parquet("./data/sample-samids-eur.parquet")
 ```
-

@@ -4,6 +4,7 @@ slides*
 
 # heavy files during prepration
 data/nm-flt-202*.parquet
+data-raw/ourairports.csv
 
 # ------------- template options ------------------------------------
 # History files
