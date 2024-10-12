@@ -20,7 +20,7 @@ pth_apdf <- here::here(pth_data, "__DATA","APDF")
 ```{r}
 source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
 
-apt <- "EGLL"
+apt <- "EHAM"
 
 fn_2023 <- check_zip_content(pth_apdf,"apdf-2023.zip") |> 
     filter(grepl(pattern = apt, x = Name))
@@ -318,7 +318,7 @@ if(apt == "EDDM") sect <- c(75, 165, 220, 265, 330)     # done
 if(apt == "EDDF") sect <- c(0,100,140,215,300,360)      # done
 if(apt == "EGLL") sect <- c(0,110,170,230,300,360)      # done
 if(apt == "EGKK") sect <- c(0,105,180,300,360)          # done
-if(apt == "EHAM") sect <- c(0,70,150,250,310,360)       # done
+if(apt == "EHAM") sect <- c(0,150,250,360)       # done
 if(apt == "LFPG") sect <- c(0,90,180,270,360)           # done
 if(apt == "LEMD") sect <- c(0,20, 50,95,150, 200, 260,330, 360) # done
 if(apt == "LEBL") sect <- c(35, 80, 115, 215, 255, 330)         # check issue with 2022
@@ -470,7 +470,7 @@ if(apt == "EDDM") sect <- c(75, 165, 220, 265, 330)     # done
 if(apt == "EDDF") sect <- c(0,100,140,215,300,360)      # done
 if(apt == "EGLL") sect <- c(0,130,200,265,315,360)      # done
 if(apt == "EGKK") sect <- c(0,105,180,300,360)          # done
-if(apt == "EHAM") sect <- c(0,70,150,250,310,360)       # done
+if(apt == "EHAM") sect <- c(0,75,145,230,280,360)       # done
 if(apt == "LFPG") sect <- c(0,90,180,270,360)           # done
 if(apt == "LEMD") sect <- c(0,20, 50,95,150, 200, 260,330, 360) # done
 if(apt == "LEBL") sect <- c(35, 80, 115, 215, 255, 330)         # check issue with 2022
@@ -481,9 +481,7 @@ if(apt == "LTFM") sect <- c(0,90, 180, 280,360)
 if(apt == "EFHK") sect <- c(0, 35,85, 130, 290)
 
 sect <- c(0, sect, 360) |> unique()
-```
 
-```{r}
 dsma_2023 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_dsma_sector()
 ```
 
