@@ -58,9 +58,22 @@ mvt_bra <- list(
 )
 
 mvt_bra <- mvt_bra |> bind_rows() |> 
-    mutate(across( .cols = c(AOBT, ATOT, ALDT, AIBT)
+    rename(SOBT = PREV_EOBT, SIBT = PREV_EIBT) |> 
+    mutate(across( .cols = c(SOBT, AOBT, ATOT, ALDT, AIBT, SIBT)
                   ,.fns  = ~ coerce_xlx_numeric_to_datetime(.x) )
            )
+```
+
+ read in - check VRA
+
+```{r}
+source("~/RProjects/PBWG-2024-Xian/R/bra-checks-nice-names.R")
+
+chacka <- read_zip(here::here(bra_data_path), "Dados-BRA-2024.zip", "Dados_2024/VRA_ano_2024.csv") |> 
+    # standardise names
+    dplyr::rename(dplyr::any_of(nice_names))
+
+
 ```
 
 
@@ -72,13 +85,14 @@ mvt_bra <- mvt_bra |> bind_rows() |>
 
 ```{r}
 start_date <- ymd("2024-06-17")
-end_date   <- start_date + days(14)
+end_date   <- start_date + days(28)
 
 gftv <- punc_bra |> 
     filter(  (PHASE == "ARR" & ADEP %in% apts_eur) |
              (PHASE == "DEP" & ADES %in% apts_eur)
            ) |> 
-    filter(start_date <= date(SCHED_TIME), date(SCHED_TIME) <= end_date)
+    filter(start_date <= date(SCHED_TIME), date(SCHED_TIME) <= end_date) |> 
+    mutate(SRC = "BRA-punc")
 
 # extract from punctualtity data and convert to milestone
 gftv <- gftv |> 
@@ -91,24 +105,23 @@ gftv <- gftv |>
           , PHASE == "DEP" & MST == "SCHED_TIME" ~ "SOBT"
           , PHASE == "DEP" & MST == "BLOCK_TIME" ~ "AOBT"
           , .default = NA)
-      , SRC = "BRA"
-        ) |> 
-    select(-PHASE)
+     # , SRC = "BRA"
+        ) # |> select(-PHASE)
 
 # extract from movement data
 gftv_mov <- mvt_bra |> 
-    select(FLTID, ICAO, PHASE, TYPE, AOBT, ATOT, ALDT, AIBT) |> 
+    select(FLTID, ICAO, PHASE, TYPE, SOBT, AOBT, ATOT, ALDT, AIBT, SIBT) |> 
     filter(ICAO %in% apts_bra$ICAO) |> 
-    pivot_longer(  cols = c("AOBT","ATOT","ALDT","AIBT")
+    pivot_longer(  cols = c("SOBT","AOBT","ATOT","ALDT","AIBT","SIBT")
                  , names_to = "MST", values_to = "TIME") |> 
     mutate(  ADEP = if_else(PHASE == "DEP", ICAO, NA)
            , ADES = if_else(PHASE == "ARR", ICAO, NA)) |> 
-    select(-ICAO, - PHASE) |> 
+    select(-ICAO) |>  #, - PHASE) |> 
     filter(!is.na(TIME)) |> 
     mutate(TOFM_EUR = FLTID %in% gftv$FLTID
            , SRC = "BRA") |> 
-    filter(TOFM_EUR) |> 
-    select(-TOFM_EUR) |> 
+  #  filter(TOFM_EUR) |> 
+  #  select(-TOFM_EUR) |> 
     filter(between(TIME, start_date, end_date))
 ```
 
