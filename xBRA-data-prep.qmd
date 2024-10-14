@@ -164,3 +164,37 @@ BRA-EUR
 gftv_bra_eur <- bind_rows(fbb, gftv_eur)
 ```
 
+
+make it work for one service
+```{r}
+bra_eur_gotcha <- list()
+```
+
+
+```{r}
+clean_ids <- c("AEA057")
+mst_seq   <- c("SOBT" = 1, "AOBT" = 2, "D100" = 3, "A100" = 4, "ALDT" = 5, "AIBT" = 6, "SIBT" = 7)
+
+AEA057 <- gftv_bra_eur |> filter(ADEP == "LEMD", ADES == "SBGR") |> 
+    mutate(
+        DOF = date(TIME)
+      , C_FLTID = case_when(
+          FLTID == "AEA0057" ~ "AEA057", FLTID == "AEA057" ~ "AEA057"
+          , .default = FLTID)
+      , MST_SEQ = mst_seq[MST]
+      ,FLT_LBL = ifelse(MST == "SOBT", 1, 0)
+      ) |> 
+    filter(
+         DOF %in% c(ymd("2024-06-17"), ymd("2024-06-18"))
+        ,C_FLTID %in% clean_ids) |> 
+    arrange(TIME) |> 
+    mutate(FLT_LBL = cumsum(FLT_LBL)) |> 
+    select(C_FLTID, FLTID, ADEP, ADES, MST, MST_SEQ, FLT_LBL, TIME, everything())
+```
+
+calculate stuff
+
+```{r}
+AEA057 |> pivot_wider(id_cols = c(C_FLTID, ADEP, ADES, FLT_LBL), names_from = "MST", values_from = "TIME")
+```
+
