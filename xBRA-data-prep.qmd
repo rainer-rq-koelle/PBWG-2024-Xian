@@ -71,9 +71,22 @@ source("~/RProjects/PBWG-2024-Xian/R/bra-checks-nice-names.R")
 
 chacka <- read_zip(here::here(bra_data_path), "Dados-BRA-2024.zip", "Dados_2024/VRA_ano_2024.csv") |> 
     # standardise names
-    dplyr::rename(dplyr::any_of(nice_names))
+    dplyr::rename(dplyr::any_of(nice_names)) |> 
+    dplyr::mutate(C_FLTID = paste0(OPR, sprintf("%04s", TRIP_NBR))) |> 
+    dplyr::mutate(across(.cols =c(ATOT, ALDT, STOT, SLDT), .fns = ~ lubridate::dmy_hm(.x)))
 
+chacka_arrs <- chacka |> 
+    select(C_FLTID, ADEP, ADES, TYPE, ALDT, SLDT) |> mutate(PHASE = "ARR") |> 
+    mutate(RAND_A100 = runif(n = nrow(chacka_arrs), min = 21, max = 32), A100 = ALDT - (RAND_A100 * 60))
 
+chacka_deps <- chacka |> 
+    select(C_FLTID, ADEP, ADES, TYPE, ATOT, STOT) |> mutate(PHASE = "DEP") |> 
+    mutate(RAND_D100 = runif(n = nrow(chacka_arrs), min = 2, max = 24), D100 = ATOT + (RAND_D100 * 60))
+
+chacka_mst <- bind_rows(
+    chacka_arrs |> pivot_longer(cols = c("SLDT","ALDT","A100"), names_to = "MST", values_to = "TIME")
+   ,chacka_deps |> pivot_longer(cols = c("STOT","ATOT","D100"), names_to = "MST", values_to = "TIME")
+)
 ```
 
 
@@ -129,6 +142,30 @@ gftv_mov <- mvt_bra |>
 fbb <- bind_rows(gftv, gftv_mov)
 # fix
 fbb <- fbb |> rename(TIME_SRC = TIME) |> mutate(TIME = TIME_SRC - hours(24))
+
+#2ND GO WORK WITH VRA AND SIMULATED A100 / D100
+# get pbwg airports non-bra
+pbwg_apts    <- readxl::read_excel("data/pbwg-apts.xlsx")
+bra_apts     <- pbwg_apts |> filter(REG_3 == "BRA") |> pull(ICAO)
+non_bra_apts <- pbwg_apts |> filter(!ICAO %in% bra_apts) |> pull(ICAO)
+
+start_date <- ymd("2024-06-17")
+end_date   <- start_date + days(28)
+
+fb2 <- bind_rows(chacka_mst, gftv |> mutate(C_FLTID = FLTID)) |> 
+    select(C_FLTID, ADEP, ADES, TYPE, PHASE, MST, TIME) |> 
+    filter(between(TIME, start_date, end_date)) 
+
+fb3 <- fb2 |> 
+    mutate(PBWG_ADP = case_when(
+       PHASE == "ARR" & ADES %in% bra_apts & ADEP %in% non_bra_apts ~ "PBWG_ADP"
+      ,PHASE == "DEP" & ADEP %in% bra_apts & ADES %in% non_bra_apts ~ "PBWG_ADP"
+       , .default = NA
+    ))
+# note - check for other side arrival/dep times know to Brazil!
+
+fb4 <- fb3 |> filter(PBWG_ADP == "PBWG_ADP") |> mutate(SRC = "BRA-withsim")
+
 ```
 
 get the European flights
@@ -152,7 +189,7 @@ apdf_to_mst <- function(.apdf){
     a100 <- arrs |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = C100_TIME) |> mutate(MST = "A100", SRC = "EUR")
     d100 <- deps |> select(FLTID, ADEP, ADES, TYPE, REG, TIME = C100_TIME) |> mutate(MST = "D100", SRC = "EUR")
     
-    msts <- bind_rows(sibts, sobts, aldts, aibts, aobts, a100, d100)
+    msts <- bind_rows(sibts, sobts, aldts, atots, aibts, aobts, a100, d100)
 }
 
 gftv_eur <- gftv_eur |> apdf_to_mst()
@@ -161,7 +198,8 @@ gftv_eur <- gftv_eur |> apdf_to_mst()
 BRA-EUR
 
 ```{r}
-gftv_bra_eur <- bind_rows(fbb, gftv_eur)
+#gftv_bra_eur <- bind_rows(fbb, gftv_eur)
+gftv_bra_eur2 <- bind_rows(fb4, gftv_eur)
 ```
 
 
@@ -195,6 +233,43 @@ AEA057 <- gftv_bra_eur |> filter(ADEP == "LEMD", ADES == "SBGR") |>
 calculate stuff
 
 ```{r}
-AEA057 |> pivot_wider(id_cols = c(C_FLTID, ADEP, ADES, FLT_LBL), names_from = "MST", values_from = "TIME")
+# create wide milestone table
+#-------- tbd
+
+# calc difftimes when exist
+calc_difftime_when_given <- function(.time2, .time1){
+    if(is.na(.time2) | is.na(.time1)){
+        delta = NA
+    }else{
+        delta = difftime(.time2, .time1, units ="min")
+    }
+    delta |> as.numeric()
+}
+
+# calculate flight time variability per phase
+# * get stats
+# * taxi-out
+# * enroute
+# * taxi-in
+calc_phases <- function(.wide_mst){
+    tmp <- .wide_mst |> dplyr::group_by(C_FLTID, FLT_LBL) |> 
+        dplyr::rowwise() |> 
+        # overall stats -------------------
+        dplyr::mutate(
+            SET = calc_difftime_when_given(SIBT, SOBT)
+           ,AET = calc_difftime_when_given(AIBT, AOBT) 
+        #   ,AFT = calc_difftime_when_given(ALDT, ATOT) 
+           ) |> 
+        # phase durations
+        dplyr::mutate(
+             TXOT = calc_difftime_when_given(ATOT, AOBT)
+            ,TXIT = calc_difftime_when_given(AIBT, ALDT)
+        )
+        dplyr::ungroup()
+    tmp
+}
+
+AEA057 |> pivot_wider(id_cols = c(C_FLTID, ADEP, ADES, FLT_LBL), names_from = "MST", values_from = "TIME") |> 
+    calc_phases()
 ```
 
