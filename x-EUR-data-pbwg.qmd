@@ -17,24 +17,34 @@ pth_data <- here::here() |> dirname()
 pth_apdf <- here::here(pth_data, "__DATA","APDF")
 ```
 
+EDDF, EDDM, EGLL, EHAM, LEMD, LFPG, LIRF, LSZH, LTFM
+
+
 ```{r}
 source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
 
 apt <- "LSZH"
 
-fn_2023 <- check_zip_content(pth_apdf,"apdf-2023.zip") |> 
+fn_2022 <- check_zip_content(pth_apdf,"apdf-2022.zip") |> 
     filter(grepl(pattern = apt, x = Name))
-ds_2023 <- read_zip(pth_apdf, "apdf-2023.zip", fn_2023$Name) |> 
+ds_2022 <- read_zip(pth_apdf, "apdf-2022.zip", fn_2022$Name) |> 
     trim_apdf_for_pbwg() |> 
     make_nice_names_apdf()  |> 
     append_dof()
 
-fn_2024 <- check_zip_content(pth_apdf,"apdf-2024-JanSep.zip") |> 
-    filter(grepl(pattern = apt, x = Name))
-ds_2024 <- read_zip(pth_apdf, "apdf-2024-JanSep.zip", fn_2024$Name) |> 
-    trim_apdf_for_pbwg() |> 
-    make_nice_names_apdf() |> 
-    append_dof()
+# fn_2023 <- check_zip_content(pth_apdf,"apdf-2023.zip") |>
+#     filter(grepl(pattern = apt, x = Name))
+# ds_2023 <- read_zip(pth_apdf, "apdf-2023.zip", fn_2023$Name) |>
+#     trim_apdf_for_pbwg() |>
+#     make_nice_names_apdf()  |>
+#     append_dof()
+# 
+# fn_2024 <- check_zip_content(pth_apdf,"apdf-2024-JanSep.zip") |> 
+#     filter(grepl(pattern = apt, x = Name))
+# ds_2024 <- read_zip(pth_apdf, "apdf-2024-JanSep.zip", fn_2024$Name) |> 
+#     trim_apdf_for_pbwg() |> 
+#     make_nice_names_apdf() |> 
+#     append_dof()
 ```
 
 
@@ -46,11 +56,13 @@ ICAO,DATE,ARRS,DEPS,SRC_NA,ARRS_REG,DEPS_REG,HEL,H,M,L,NA
 ```{r}
 source("~/RProjects/PBWG-2024-Xian/R/apt-daily-stats.R")
 
-stats_2023 <- ds_2023 |> airport_daily_stats(.apt = apt, .yr = 2023)
-stats_2024 <- ds_2024 |> airport_daily_stats(.apt = apt, .yr = 2024)
+stats_2022 <- ds_2022 |> airport_daily_stats(.apt = apt, .yr = 2022)
+# stats_2023 <- ds_2023 |> airport_daily_stats(.apt = apt, .yr = 2023)
+# stats_2024 <- ds_2024 |> airport_daily_stats(.apt = apt, .yr = 2024)
 
-stats_2023 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2023.parquet"))
-stats_2024 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2024.parquet"))
+stats_2022 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2022.parquet"))
+# stats_2023 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2023.parquet"))
+# stats_2024 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2024.parquet"))
 ```
 
 # Throughput
@@ -59,13 +71,17 @@ stats_2024 |> arrow::write_parquet(paste0("./data/apt-tfc-", apt, "-2024.parquet
 source("~/RProjects/PBWG-2024-Xian/R/apt-throughput.R")
 source("~/RProjects/PBWG-2024-Xian/R/xhelp-check-vars.R")
 
-ds_2023 |> calc_throughput("15 min") |> arrange(BIN) |> 
-    filter(lubridate::year(BIN) == 2023) |> 
-    arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2023.parquet"))
+ds_2022 |> calc_throughput("15 min") |> arrange(BIN) |> 
+    filter(lubridate::year(BIN) == 2022) |> 
+    arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2022.parquet"))
 
-ds_2024 |> calc_throughput("15 min") |> arrange(BIN) |> 
-    filter(lubridate::year(BIN) == 2024) |> 
-    arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2024.parquet"))
+# ds_2023 |> calc_throughput("15 min") |> arrange(BIN) |> 
+#     filter(lubridate::year(BIN) == 2023) |> 
+#     arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2023.parquet"))
+# 
+# ds_2024 |> calc_throughput("15 min") |> arrange(BIN) |> 
+#     filter(lubridate::year(BIN) == 2024) |> 
+#     arrow::write_parquet(paste0("./data/apt-thrus-", apt, "-2024.parquet"))
 ```
 
 
@@ -89,15 +105,17 @@ get_punc_arrs <- function(.apdf, .apt = apt, .yr = NULL){
     return(tmp)
 }
 
-punc_arrs_2023 <- get_punc_arrs(ds_2023, apt, 2023)
-punc_arrs_2024 <- get_punc_arrs(ds_2024, apt, 2024)
+punc_arrs_2022 <- get_punc_arrs(ds_2022, apt, 2022)
+# punc_arrs_2023 <- get_punc_arrs(ds_2023, apt, 2023)
+# punc_arrs_2024 <- get_punc_arrs(ds_2024, apt, 2024)
 ```
 
 write out arrival punctuality
 
 ```{r}
-punc_arrs_2023 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2023.parquet"))
-punc_arrs_2024 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2024.parquet"))
+punc_arrs_2022 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2022.parquet"))
+# punc_arrs_2023 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2023.parquet"))
+# punc_arrs_2024 |> arrow::write_parquet(paste0("./data/apt-punc-arr-", apt, "-2024.parquet"))
 ```
 
 ## Departure
@@ -116,15 +134,17 @@ get_punc_deps <- function(.apdf, .apt = apt, .yr = NULL){
     return(tmp)
 }
 
-punc_deps_2023 <- get_punc_deps(ds_2023, apt, 2023)
-punc_deps_2024 <- get_punc_deps(ds_2024, apt, 2024)
+punc_deps_2022 <- get_punc_deps(ds_2022, apt, 2022)
+# punc_deps_2023 <- get_punc_deps(ds_2023, apt, 2023)
+# punc_deps_2024 <- get_punc_deps(ds_2024, apt, 2024)
 ```
 
 write out departure punctuality
 
 ```{r}
-punc_deps_2023 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2023.parquet"))
-punc_deps_2024 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2024.parquet"))
+punc_deps_2022 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2022.parquet"))
+# punc_deps_2023 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2023.parquet"))
+# punc_deps_2024 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-2024.parquet"))
 ```
 
 # Taxi-In
@@ -132,33 +152,38 @@ punc_deps_2024 |> arrow::write_parquet(paste0("./data/apt-punc-dep-", apt, "-202
 PBWG convention --> base year 2023
 
 ```{r}
-txits_2023 <- ds_2023 |> filter(PHASE == "ARR") |> 
+txits_2022 <- ds_2022 |> filter(PHASE == "ARR") |> 
     select(ICAO = ADES, PHASE, ALDT = MVT_TIME, AIBT = BLOCK_TIME, RWY, STND) |> 
     mutate(TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()) |> 
     filter(TXIT < 75)
 
-txits_2024 <- ds_2024 |> filter(PHASE == "ARR") |> 
-    select(ICAO = ADES, PHASE, ALDT = MVT_TIME, AIBT = BLOCK_TIME, RWY, STND) |> 
-    mutate(TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()) |> 
-    filter(TXIT < 75)
- 
-refs_2023 <- txits_2023 |> 
-    group_by(STND, RWY) |> 
-    reframe(
-        SMPL = dplyr::n()
-        ,REF_MEAN = mean(TXIT, na.rm = TRUE)
-        ,REF_P20  = quantile(TXIT, probs = 0.2 , na.rm = TRUE)
-        ,REF_P05  = quantile(TXIT, probs = 0.05, na.rm = TRUE)
-        ,REF_P15  = quantile(TXIT, probs = 0.15, na.rm = TRUE)
-        ,REF_PBWG = (REF_P05 + REF_P15)/2
-        ) |> 
-    mutate(ICAO = apt, YEAR = 2023)
+# txits_2023 <- ds_2023 |> filter(PHASE == "ARR") |> 
+#     select(ICAO = ADES, PHASE, ALDT = MVT_TIME, AIBT = BLOCK_TIME, RWY, STND) |> 
+#     mutate(TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()) |> 
+#     filter(TXIT < 75)
+# 
+# txits_2024 <- ds_2024 |> filter(PHASE == "ARR") |> 
+#     select(ICAO = ADES, PHASE, ALDT = MVT_TIME, AIBT = BLOCK_TIME, RWY, STND) |> 
+#     mutate(TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()) |> 
+#     filter(TXIT < 75)
 ```
 
 check coverage of txits in 2024
 LTFM about 192 unrecognised combinations
 
-```{r}
+```{}
+######## YOU NEED TO LOAD 2023 FOR RECALCULATING THE REF TIMES
+# refs_2023 <- txits_2023 |> 
+#     group_by(STND, RWY) |> 
+#     reframe(
+#         SMPL = dplyr::n()
+#         ,REF_MEAN = mean(TXIT, na.rm = TRUE)
+#         ,REF_P20  = quantile(TXIT, probs = 0.2 , na.rm = TRUE)
+#         ,REF_P05  = quantile(TXIT, probs = 0.05, na.rm = TRUE)
+#         ,REF_P15  = quantile(TXIT, probs = 0.15, na.rm = TRUE)
+#         ,REF_PBWG = (REF_P05 + REF_P15)/2
+#         ) |> 
+#     mutate(ICAO = apt, YEAR = 2023)
 out_fn <- paste0("./data/apt-txit-ref-", apt, ".csv")
 
 refs_2023 |> 
@@ -169,6 +194,7 @@ refs_2023 |>
 output: ICAO,PHASE,DATE,MVTS,ADD_TIME,AVG_ADD_TIME
 
 ```{r}
+out_fn <- paste0("./data/apt-txit-ref-", apt, ".csv")
 refs <- read_csv(out_fn, show_col_types = FALSE) |> 
     select(ICAO, PHASE, STND, RWY, REF = REF_PBWG)
 
@@ -192,30 +218,46 @@ calc_txit <- function(.txits, .refs){
 ```
 
 ```{r}
-tx <- txits_2023 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2023)
-tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2023.parquet"))
+tx <- txits_2022 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2022)
+tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2022.parquet"))
 
-tx <- txits_2024 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2024)
-tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2024.parquet"))
+# tx <- txits_2023 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2023)
+# tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2023.parquet"))
+# 
+# tx <- txits_2024 |> calc_txit(refs) |> filter(lubridate::year(DATE) == 2024)
+# tx |> arrow::write_parquet(paste0("./data/apt-txit-", apt, "-2024.parquet"))
 ```
-
-
 
 # Taxi-Out
 
 PBWG convention --> base year 2023
 
 ```{r}
-txots_2023 <- ds_2023 |> filter(PHASE == "DEP") |> 
+txots_2022 <- ds_2022 |> filter(PHASE == "DEP") |> 
     select(ICAO = ADEP, PHASE, ATOT = MVT_TIME, AOBT = BLOCK_TIME, RWY, STND) |> 
     mutate(TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()) |> 
     filter(TXOT < 180)
 
-txots_2024 <- ds_2024 |> filter(PHASE == "DEP") |> 
-    select(ICAO = ADEP, PHASE, ATOT = MVT_TIME, AOBT = BLOCK_TIME, RWY, STND) |> 
-    mutate(TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()) |> 
-    filter(TXOT < 180)
+# txots_2023 <- ds_2023 |> filter(PHASE == "DEP") |>
+#     select(ICAO = ADEP, PHASE, ATOT = MVT_TIME, AOBT = BLOCK_TIME, RWY, STND) |>
+#     mutate(TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()) |>
+#     filter(TXOT < 180)
+# 
+# txots_2024 <- ds_2024 |> filter(PHASE == "DEP") |> 
+#     select(ICAO = ADEP, PHASE, ATOT = MVT_TIME, AOBT = BLOCK_TIME, RWY, STND) |> 
+#     mutate(TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()) |> 
+#     filter(TXOT < 180)
  
+
+```
+
+check coverage of txots in 2024
+LTFM about 358 unrecognised combinations by Sept 2024 ~ 0.2%
+
+```{}
+# LOAD 2023 FOR THE REF TIMES
+out_fn <- paste0("./data/apt-txot-ref-", apt, ".csv")
+
 refs_2023 <- txots_2023 |> 
     group_by(PHASE, STND, RWY) |> 
     reframe(
@@ -227,13 +269,6 @@ refs_2023 <- txots_2023 |>
         ,REF_PBWG = (REF_P05 + REF_P15)/2
         ) |> 
     mutate(ICAO = apt, YEAR = 2023)
-```
-
-check coverage of txots in 2024
-LTFM about 358 unrecognised combinations by Sept 2024 ~ 0.2%
-
-```{r}
-out_fn <- paste0("./data/apt-txot-ref-", apt, ".csv")
 
 refs_2023 |> select(ICAO, YEAR, PHASE, everything()) |>
     write_csv(out_fn)
@@ -242,6 +277,9 @@ refs_2023 |> select(ICAO, YEAR, PHASE, everything()) |>
 output: ICAO,PHASE,DATE,MVTS,ADD_TIME,AVG_ADD_TIME
 
 ```{r}
+# define ref and load
+out_fn <- paste0("./data/apt-txot-ref-", apt, ".csv")
+
 refs <- read_csv(out_fn, show_col_types = FALSE) |> 
     select(ICAO, PHASE, STND, RWY, REF = REF_PBWG)
 
@@ -266,11 +304,14 @@ calc_txot <- function(.txots, .refs){
 
 ```{r}
 # write-out taxi-out times
-tx <- txots_2023 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2023)
-tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2023.parquet"))
+tx <- txots_2022 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2022)
+tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2022.parquet"))
 
-tx <- txots_2024 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2024)
-tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2024.parquet"))
+# tx <- txots_2023 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2023)
+# tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2023.parquet"))
+# 
+# tx <- txots_2024 |> calc_txot(refs) |> filter(lubridate::year(DATE) == 2024)
+# tx |> arrow::write_parquet(paste0("./data/apt-txot-", apt, "-2024.parquet"))
 ```
 
 
@@ -289,9 +330,9 @@ extract_asma_payload <- function(.apdf, .apt = apt, .yr = NULL){
     tmp
 }
 
-
-asma_2023 <- ds_2023 |> extract_asma_payload(apt, 2023) 
-asma_2024 <- ds_2024 |> extract_asma_payload(apt, 2024)
+asma_2022 <- ds_2022 |> extract_asma_payload(apt, 2022) 
+# asma_2023 <- ds_2023 |> extract_asma_payload(apt, 2023) 
+# asma_2024 <- ds_2024 |> extract_asma_payload(apt, 2024)
 ```
 
 establish ASMA sectors
@@ -330,10 +371,10 @@ if(apt == "LTFM") sect <- c(0, 35,90, 180, 325)
 
 sect <- c(0, sect, 360) |> unique()
 
-asma_2023 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_asma_sector()
+asma_2022 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_asma_sector()
 ```
 
-```{r}
+```{}
 refs <- asma_2023 |>
   drop_na() |> 
   mutate( C40_SECT  = cut(C40_BRG,  breaks = sect)
@@ -373,7 +414,7 @@ ref100 <- refs  |>
 
 write out reference times for ASMA
 
-```{r}
+```{}
 out_asma_fn <- paste0("./data/apt-asma-ref-", apt, ".csv") 
 
 bind_rows(ref40, ref100) |> 
@@ -384,6 +425,8 @@ bind_rows(ref40, ref100) |>
 calculate ASMA 
 Airport	Date	Number of Flights	Arrival Runway Configuration	Entry Fix_Sector	WTC	Total ASMA travel time	Total ASMA reference time	Total additional ASMA time	Average additional ASMA time
 ```{r}
+out_asma_fn <- paste0("./data/apt-asma-ref-", apt, ".csv") 
+
 asma_refs <- read_csv(out_asma_fn, show_col_types = FALSE) |> 
     filter(!is.na(C100_SECT)) |> 
     select(ICAO, PHASE, RANGE, CLASS, RWY, C100_SECT, REF = REF_PBWG)
@@ -416,11 +459,14 @@ pbwg_asma_daily <- function(.prepped_asma){
 ```
 
 ```{r}
-asma_2023 |> prep_asma() |> pbwg_asma_daily() |> 
-    arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2023.parquet"))
+asma_2022 |> prep_asma() |> pbwg_asma_daily() |> 
+    arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2022.parquet"))
 
-asma_2024 |> prep_asma() |> pbwg_asma_daily() |> 
-    arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2024.parquet"))
+# asma_2023 |> prep_asma() |> pbwg_asma_daily() |> 
+#     arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2023.parquet"))
+# 
+# asma_2024 |> prep_asma() |> pbwg_asma_daily() |> 
+#     arrow::write_parquet(paste0("./data/apt-asma-", apt, "-2024.parquet"))
 ```
 
 
@@ -439,9 +485,9 @@ extract_dsma_payload <- function(.apdf, .apt = apt, .yr = NULL){
     tmp
 }
 
-
-dsma_2023 <- ds_2023 |> extract_dsma_payload(apt, 2023) 
-dsma_2024 <- ds_2024 |> extract_dsma_payload(apt, 2024)
+dsma_2022 <- ds_2022 |> extract_dsma_payload(apt, 2022) 
+# dsma_2023 <- ds_2023 |> extract_dsma_payload(apt, 2023) 
+# dsma_2024 <- ds_2024 |> extract_dsma_payload(apt, 2024)
 ```
 
 establish DSMA sectors
@@ -480,10 +526,10 @@ if(apt == "LTFM") sect <- c(0,90, 180, 280,360)
 
 sect <- c(0, sect, 360) |> unique()
 
-dsma_2023 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_dsma_sector()
+dsma_2022 |> filter(!is.na(C40_BRG) | !is.na(C100_BRG)) |> check_dsma_sector()
 ```
 
-```{r}
+```{}
 refs <- dsma_2023 |>
   drop_na() |> 
   mutate( C40_SECT  = cut(C40_BRG,  breaks = sect)
@@ -521,7 +567,7 @@ ref100 <- refs  |>
 
 write out reference times for DSMA
 
-```{r}
+```{}
 out_dsma_fn <- paste0("./data/apt-dsma-ref-", apt, ".csv") 
 
 bind_rows(ref40, ref100) |> 
@@ -531,6 +577,8 @@ bind_rows(ref40, ref100) |>
 
 
 ```{r}
+out_dsma_fn <- paste0("./data/apt-dsma-ref-", apt, ".csv") 
+
 dsma_refs <- read_csv(out_dsma_fn, show_col_types = FALSE) |> 
     filter(!is.na(C100_SECT)) |> 
     select(ICAO, PHASE, RANGE, CLASS, RWY, C100_SECT, REF = REF_PBWG)
@@ -563,15 +611,20 @@ pbwg_dsma_daily <- function(.prepped_dsma){
 ```
 
 ```{r}
-dsma_2023 |> prep_dsma() |> 
+dsma_2022 |> prep_dsma() |> 
     filter(ADD_DSMA < 60) |>
     pbwg_dsma_daily() |> 
-     arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2023.parquet"))
+     arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2022.parquet"))
 
-dsma_2024 |> prep_dsma() |> 
-    filter(ADD_DSMA < 60) |>
-    pbwg_dsma_daily() |> 
-     arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2024.parquet"))
+# dsma_2023 |> prep_dsma() |> 
+#     filter(ADD_DSMA < 60) |>
+#     pbwg_dsma_daily() |> 
+#      arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2023.parquet"))
+# 
+# dsma_2024 |> prep_dsma() |> 
+#     filter(ADD_DSMA < 60) |>
+#     pbwg_dsma_daily() |> 
+#      arrow::write_parquet(paste0("./data/apt-dsma-", apt, "-2024.parquet"))
 ```
 
 
