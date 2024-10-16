@@ -1,0 +1,382 @@
+---
+title: "EUR-Results-Meeting"
+format: html
+---
+
+# EUR Results - Cleaned 
+
+## Daily Traffic
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-tfc-[EL][A-Z]{3}", full.names = TRUE)
+
+tfc <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+tfc <- tfc |> 
+    mutate(FLTS = ARRS + DEPS
+           , FLTS_SM = zoo::rollmean(FLTS, k = 7, fill = NA)
+           , FLTS_SM = ifelse(is.na(FLTS_SM), FLTS, FLTS_SM)
+           ) |> 
+    filter(between(DOF, ymd("2022-01-02"),ymd("2024-08-28")))
+
+tfc |> 
+    ggplot() +
+    geom_path(aes(x = DOF, y = FLTS_SM, group = lubridate::year(DOF))) + 
+    scale_y_continuous(limits = c(0,NA)) +
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = element_blank(),
+        # title = "European PBWG study airports - daily traffic"
+         )
+```
+
+ggsave("figures/apt-EUR-daily-traffic.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+```{r}
+tfc_annual_with_partialyear <- tfc |> 
+  #  filter(ICAO %in% c("EDDF")) |> 
+    mutate(YEAR = year(DOF), MOF = month(DOF), MOF_CUT = MOF > 8) |> 
+    group_by(ICAO, YEAR, MOF_CUT) |> 
+    reframe(FLTS = sum(FLTS, na.rm = TRUE))
+
+check_line <- tfc_annual_with_partialyear |> 
+    filter(YEAR == 2023) |> 
+    mutate(TOT = cumsum(FLTS)) |> 
+    pull(TOT)
+
+tfc_annual_with_partialyear |> 
+    ggplot() + 
+    geom_col(aes(x = YEAR, y = FLTS, group = YEAR, fill = MOF_CUT)) + 
+    facet_wrap(. ~ ICAO) + 
+    scale_fill_manual(name = element_blank()
+                      , labels = c("JAN-AUG", "SEP-DEC")
+                      , values = c("blue", "navy")
+                      ) + 
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = element_blank(), y = element_blank()) 
+# +
+#     geom_hline(yintercept = check_line, linetype = "dashed")
+```
+
+ggsave("figures/apt-EUR-annual-traffic.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+Fleetmix
+
+```{r}
+fleetmix <- tfc |> 
+    mutate(YEAR = year(DOF)) |> 
+    group_by(ICAO, YEAR) |> 
+    reframe(H = sum(H, na.rm = TRUE), M = sum(M, na.rm = TRUE), L = sum(L, na.rm = TRUE)) |> 
+    mutate(across(.cols = c("H","M","L"), .fns = ~ (.x / (H + M + L))))
+
+# hml_colors <- c(H = "#BEF7FF", M = "#82c2ff", L = "#458CFF")
+# hml_colors <- factor(hml_colors, levels = c())
+hml_order <- factor(c("M","H","L"), levels = c("M","H","L"))
+hml_colors <- c(H = "#BEF7FF", M = "#82c2ff", L = "#458CFF")
+
+fleetmix |> 
+    pivot_longer(cols = H:L, names_to = "WTC", values_to = "SHARE") |> 
+    ggplot() + 
+    geom_col(aes(x = YEAR, y = SHARE, fill = WTC )) + 
+    facet_wrap(. ~ ICAO) + 
+    labs(x = element_blank(), y = element_blank())
+# + 
+    # scale_fill_manual(labels = hml_order, values = hml_colors)
+```
+
+ggsave("figures/apt-EUR-fleetmix.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+## Total Throughput
+
+The quarter hour peak throughput is calculated as the 95th percentile of the total movements observed on a 15 minute basis.
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-thrus-[EL][A-Z]{3}", full.names = TRUE)
+
+thrus <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+peak_thrus <- thrus |> mutate(YEAR = lubridate::year(BIN)) |> 
+    group_by(ICAO, YEAR) |> 
+    summarise(N = n(), PK_TOT_THRU = quantile(FLTS, probs = 0.95)) |> 
+    mutate(YEAR = as.character(YEAR))
+
+peak_thrus |> 
+    ggplot() +
+    geom_col(aes(x = ICAO, y = PK_TOT_THRU, group = YEAR, fill = YEAR), position = position_dodge2()) + 
+  #  facet_wrap(. ~ ICAO, scales = "free_x") +
+    labs(x = element_blank(), y = "peak total throughput", fill = element_blank())
+```
+
+ggsave("figures/apt-EUR-peakthroughput.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+## Punctuality
+
+### Arrival Punctuality
+
+```{r}
+fns <- list.files(path = "./data", pattern = "^apt-punc-arr-[EL][A-Z]{3}", full.names = TRUE)
+
+punc_arrs <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+cols_to_sum <- names(punc_arrs)[5:20]
+punc_arrs <- punc_arrs |> mutate(OTP = rowSums(punc_arrs[, cols_to_sum]) )
+
+punc_arrs |> arrange(DATE) |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = `Within (-15,15)`/ VALID, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "arr punctuality within 15 min")
+
+```
+
+```{r}
+library(wesanderson)
+
+punc_arrs_annual <- punc_arrs |> 
+    mutate(YEAR = year(DATE)) |> 
+    select(ICAO, YEAR, PHASE, VALID, `Within (-5,5)`, `Within (-15,15)`, OTP) |> 
+    group_by(YEAR, ICAO, PHASE) |> 
+    reframe(across(.cols = c(VALID, `Within (-5,5)` ,`Within (-15,15)` ,  OTP)
+                   , .fns = ~ sum(.x))
+            ) |> 
+    mutate(across(.cols = c(`Within (-5,5)` ,`Within (-15,15)` ,  OTP), .fns = ~ .x/VALID))
+
+punc_arrs_annual |> pivot_longer(cols = `Within (-5,5)`:OTP, names_to = "PUNC_MSR", values_to = "SHARE") |> mutate(YEAR = as.character(YEAR)) |> ggplot() + geom_col(aes(x = SHARE, y = ICAO, fill = YEAR), position = position_dodge2()) + facet_wrap(.~PUNC_MSR) + labs(x = element_blank(), y = element_blank()) + theme(legend.position = c(0.9, 0.15)) + scale_fill_manual(values = wes_palette("Moonrise2", n = 3))
+```
+
+ggsave("figures/apt-EUR-punc-arrival.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+### Departure Punctuality
+
+```{r}
+fns <- list.files(path = "./data", pattern = "^apt-punc-dep-[EL][A-Z]{3}", full.names = TRUE)
+
+punc_deps <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+cols_to_sum <- names(punc_deps)[5:20]
+punc_deps <- punc_deps |> mutate(OTP = rowSums(punc_deps[, cols_to_sum]) )
+
+punc_deps |> arrange(DATE) |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = `Within (-15,15)`/ VALID, group = lubridate::year(DATE))) + 
+    scale_y_continuous(limits = c(0,NA)) +
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "arr punctuality within 15 min")
+
+```
+
+```{r}
+punc_deps_annual <- punc_deps |> 
+    mutate(YEAR = year(DATE)) |> 
+    select(ICAO, YEAR, PHASE, VALID, `Within (-5,5)`, `Within (-15,15)`, OTP) |> 
+    group_by(YEAR, ICAO, PHASE) |> 
+    reframe(across(.cols = c(VALID, `Within (-5,5)` ,`Within (-15,15)` ,  OTP)
+                   , .fns = ~ sum(.x))
+            ) |> 
+    mutate(across(.cols = c(`Within (-5,5)` ,`Within (-15,15)` ,  OTP), .fns = ~ .x/VALID))
+
+punc_deps_annual |> pivot_longer(cols = `Within (-5,5)`:OTP, names_to = "PUNC_MSR", values_to = "SHARE") |> mutate(YEAR = as.character(YEAR)) |> ggplot() + geom_col(aes(x = SHARE, y = ICAO, fill = YEAR), position = position_dodge2()) + facet_wrap(.~PUNC_MSR) + labs(x = element_blank(), y = element_blank()) + theme(legend.position = c(0.9, 0.15)) + scale_fill_manual(values = wes_palette("Moonrise2", n = 3))
+```
+
+ggsave("figures/apt-EUR-punc-departures.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+
+## Taxi-In Times
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-txit-[EL][A-Z]{3}", full.names = TRUE)
+
+txits <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+# smooth
+txits <- txits |> 
+    mutate(AVG_ADD_SM = zoo::rollmean(AVG_ADD_TIME, k = 7, fill = NA)
+           , AVG_ADD_SM = ifelse(is.na(AVG_ADD_SM), AVG_ADD_TIME, AVG_ADD_SM)
+           ) |> 
+    filter(between(DATE, ymd("2022-01-02"),ymd("2024-08-28")))
+
+txits |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_ADD_SM, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. taxi-in time")
+```
+
+ggsave("figures/apt-EUR-txit-daily.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+```{r}
+txits_annual_with_partialyear <- txits |> 
+  #  filter(ICAO %in% c("EDDF")) |> 
+    mutate(YEAR = year(DATE), MOF = month(DATE), MOF_CUT = MOF > 8) |> 
+    group_by(ICAO, YEAR, MOF_CUT) |> 
+    reframe(MVTS = sum(MVTS, na.rm = TRUE)
+            , TOT_ADD_TIME = sum(TOT_ADD_TIME, na.rm = TRUE) ) |> 
+    mutate(AVG_ADD_TIME = TOT_ADD_TIME / MVTS)
+
+txits_annual_with_partialyear |> 
+    mutate(YEAR = as.character(YEAR)) |> 
+    ggplot() + 
+    geom_col(aes(x = YEAR, y = AVG_ADD_TIME, group = YEAR, fill = MOF_CUT)
+             , position = position_dodge2(preserve = "single")) + 
+    facet_wrap(. ~ ICAO) + 
+    scale_fill_manual(name = element_blank()
+                      , labels = c("JAN-AUG", "SEP-DEC")
+                      , values = c("blue", "navy")
+                      ) + 
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = element_blank(), y = element_blank()) 
+```
+
+ggsave("figures/apt-EUR-txit-annual-partial.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+## Taxi-Out Times
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-txot-[EL][A-Z]{3}", full.names = TRUE)
+
+txots <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+# smooth
+txots <- txots |> 
+    mutate(AVG_ADD_SM = zoo::rollmean(AVG_ADD_TIME, k = 7, fill = NA)
+           , AVG_ADD_SM = ifelse(is.na(AVG_ADD_SM), AVG_ADD_TIME, AVG_ADD_SM)
+           ) |> 
+    filter(between(DATE, ymd("2022-01-02"),ymd("2024-08-28")))
+
+txots |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_ADD_TIME, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. taxi-out time")
+```
+
+ggsave("figures/apt-EUR-txot-daily.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+```{r}
+txots_annual_with_partialyear <- txots |> 
+  #  filter(ICAO %in% c("EDDF")) |> 
+    mutate(YEAR = year(DATE), MOF = month(DATE), MOF_CUT = MOF > 8) |> 
+    group_by(ICAO, YEAR, MOF_CUT) |> 
+    reframe(MVTS = sum(MVTS, na.rm = TRUE)
+            , TOT_ADD_TIME = sum(TOT_ADD_TIME, na.rm = TRUE) ) |> 
+    mutate(AVG_ADD_TIME = TOT_ADD_TIME / MVTS)
+
+txots_annual_with_partialyear |> 
+    mutate(YEAR = as.character(YEAR)) |> 
+    ggplot() + 
+    geom_col(aes(x = YEAR, y = AVG_ADD_TIME, group = YEAR, fill = MOF_CUT)
+             , position = position_dodge2(preserve = "single")) + 
+    facet_wrap(. ~ ICAO) + 
+    scale_fill_manual(name = element_blank()
+                      , labels = c("JAN-AUG", "SEP-DEC")
+                      , values = c("blue", "navy")
+                      ) + 
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = element_blank(), y = element_blank()) 
+```
+
+ggsave("figures/apt-EUR-txot-annual-partial.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+
+```{r}
+txit_annual <- txits_annual_with_partialyear |> group_by(ICAO, YEAR) |> reframe(across(.cols = c(MVTS, TOT_ADD_TIME), .fns = ~ sum(.x, na.rm = TRUE))) |> mutate(TXIT_AVG_ADD = TOT_ADD_TIME / MVTS) |> 
+    select(ICAO, YEAR, TXIT_AVG_ADD)
+
+txot_annual <- txots_annual_with_partialyear |> group_by(ICAO, YEAR) |> reframe(across(.cols = c(MVTS, TOT_ADD_TIME), .fns = ~ sum(.x, na.rm = TRUE))) |> mutate(TXOT_AVG_ADD = TOT_ADD_TIME / MVTS) |> 
+    select(ICAO, YEAR, TXOT_AVG_ADD)
+
+txit_vs_txot <- txit_annual |> left_join(txot_annual)
+p <- txit_vs_txot |> mutate(YEAR = as.character(YEAR)) |> ggplot() + geom_point(aes(x = TXIT_AVG_ADD, y = TXOT_AVG_ADD, color = YEAR)) + facet_wrap(. ~ ICAO) +
+    labs(x = "add. avg. txit", y = "add. avg. txot", color = element_blank()) +
+    theme(legend.position = c(0.05, 0.95))
+p
+```
+
+ggsave("figures/apt-EUR-txit-vs-txot.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+## Additional ASMA Time
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-asma-[EL][A-Z]{3}", full.names = TRUE)
+
+asmas <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+daily_asma <- asmas |> 
+    group_by(ICAO, DATE, PHASE) |> 
+    reframe(across(c(FLTS, TOT_A100, TOT_REF, TOT_ADD), .fns = sum)) |> 
+    mutate(AVG_ASMA = TOT_ADD / FLTS)
+
+# smooth
+daily_asma <- daily_asma |> 
+    mutate( AVG_ASMA_SM = zoo::rollmean(AVG_ASMA, k = 7, fill = NA)
+           ,AVG_ASMA_SM = ifelse(is.na(AVG_ASMA_SM), AVG_ASMA, AVG_ASMA_SM)
+           ) |> 
+    filter(between(DATE, ymd("2022-01-02"),ymd("2024-08-28")))
+
+daily_asma |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_ASMA_SM, group = lubridate::year(DATE))) + 
+    scale_y_continuous(limits = c(0,NA)) +
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. add. ASMA time")
+```
+
+ggsave("figures/apt-EUR-asma-daily.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+```{r}
+asmas_annual_with_partialyear <- daily_asma |> 
+  #  filter(ICAO %in% c("EDDF")) |> 
+    mutate(YEAR = year(DATE), MOF = month(DATE), MOF_CUT = MOF > 8) |> 
+    group_by(ICAO, YEAR, MOF_CUT) |> 
+    reframe(FLTS = sum(FLTS, na.rm = TRUE)
+            , TOT_ADD = sum(TOT_ADD, na.rm = TRUE) ) |> 
+    mutate(AVG_ADD_TIME = TOT_ADD / FLTS)
+
+asmas_annual_with_partialyear |> 
+    mutate(YEAR = as.character(YEAR)) |> 
+    ggplot() + 
+    geom_col(aes(x = YEAR, y = AVG_ADD_TIME, group = YEAR, fill = MOF_CUT)
+             , position = position_dodge2(preserve = "single")) + 
+    facet_wrap(. ~ ICAO) + 
+    scale_fill_manual(name = element_blank()
+                      , labels = c("JAN-AUG", "SEP-DEC")
+                      , values = c("blue", "navy")
+                      ) + 
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = element_blank(), y = element_blank()) 
+```
+
+ggsave("figures/apt-EUR-asma-annual-partial.png", width = 8, height = 6, dpi = 320, bg = "white")
+
+## Additional DSMA Time
+
+```{r}
+fns <- list.files(path = "./data/", pattern = "^apt-dsma-[EL][A-Z]{3}", full.names = TRUE)
+
+dsmas <- fns |> purrr::map(.x, .f = ~ arrow::read_parquet(.x)) |> 
+    dplyr::bind_rows()
+
+daily_dsma <- dsmas |> 
+    group_by(ICAO, DATE, PHASE) |> 
+    reframe(across(c(FLTS, TOT_D100, TOT_REF, TOT_ADD), .fns = sum)) |> 
+    mutate(AVG_DSMA = TOT_ADD / FLTS)
+
+# smooth
+txits <- txits |> 
+    mutate(AVG_ADD_SM = zoo::rollmean(AVG_ADD_TIME, k = 7, fill = NA)
+           , AVG_ADD_SM = ifelse(is.na(AVG_ADD_SM), AVG_ADD_TIME, AVG_ADD_SM)
+           ) |> 
+    filter(between(DATE, ymd("2022-01-02"),ymd("2024-08-28")))
+
+daily_dsma |> 
+    ggplot() +
+    geom_path(aes(x = DATE, y = AVG_DSMA, group = lubridate::year(DATE))) + 
+    facet_wrap(. ~ ICAO) +
+    labs(x = element_blank(), y = "avg. add. DSMA time")
+```
