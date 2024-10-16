@@ -1,0 +1,96 @@
+---
+title: "GFTV"
+format: html
+---
+
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+source("_chapter-defaults.R")
+
+# load utility files
+apts_pbwg <- readxl::read_xlsx("./data/pbwg-apts.xlsx")
+apts_eur  <- apts_pbwg |> filter(REG_3 == "EUR") |> pull(ICAO)
+apts_bra  <- apts_pbwg |> filter(REG_3 == "BRA")
+
+# data downloaded stored
+top_level_path <- here::here() |> dirname()
+```
+load sample / play data
+
+* CAAS
+* CAAC
+
+```{r}
+# SIN
+sin_arrs <- read_csv("./data/SIN-Arrivals_JunJul24.csv", show_col_types = FALSE)
+sin_deps <- read_csv("./data/SIN-Departures_JunJul24.csv", show_col_types = FALSE)
+
+# CAAC
+chn_smpl <- readxl::read_excel("./data/CHN-DATA-CAAC-update.xlsx") 
+```
+
+clean names
+
+```{r}
+chn_ds <- chn_smpl |> rename(
+    FLTID = `FLIGHT NUMBER`, TYPE = `ACFT TYPE`, ALDT_CHN = ALDT, AIBT_CHN = AIBT
+    ) |> 
+    select(-`SN.`, -DATE) |> 
+    mutate(across(.cols =c("AOBT","ATOT"), .fns = ~ ymd_hm(.x, tz = "Etc/GMT-8") |> with_tz(tzone = "UTC"))
+           ,SRC = "CHN")
+
+sin_ds_a <-  sin_arrs |> rename(
+    FLTID = Callsign, TYPE = `Aircraft Type`, ALDT = ATA, REG = `Aircraft Registration` 
+    ) |>
+    mutate(SRC = "SIN")
+```
+
+standardise
+
+```{}
+sin_mst_a <- sin_arrs |> 
+    select(FLTID = Callsign, TYPE = `Aircraft Type`
+           ,REG = `Aircraft Registration`, A100 = `A100 Fix Time`, ALDT = ATA, AIBT, SIBT) |>
+    pivot_longer(cols = c("A100","ALDT","AIBT","SIBT"), names_to = "MST", values_to = "TIME") |> 
+    mutate(SRC = "SIN")
+
+chn_mst <- chn_smpl |> 
+    select(-`SN.`) |> 
+    rename(FLTID = `FLIGHT NUMBER`, TYPE = `ACFT TYPE`) |> 
+    mutate(across( .cols = c("AOBT","ATOT") # ,"ALDT","AIBT")
+                  ,.fns  = ~ ymd_hm(.x, tz = "Etc/GMT+8") |> with_tz(tzone = "UTC")
+                  )
+           ) |> 
+    pivot_longer(cols = c("AOBT","ATOT"
+                          #,"ALDT","AIBT"
+                          ), names_to = "MST", values_to = "TIME") |> 
+    mutate(SRC = "CHN")
+```
+
+```{r}
+
+```
+
+
+CONNECTIONS
+
+ZGGG - WSSS
+
+```{r}
+#| warning: false
+zggg_wsss <- chn_ds |> 
+    left_join( ( sin_ds_a |> select(FLTID, TYPE, REG, ADEP, ALDT, AIBT, SIBT, SRC) )
+              , by = join_by(REG, ADEP)) |> 
+    mutate(FT = difftime(ALDT, ATOT, units = "min") |> as.numeric()
+           ,TXOT = difftime(ATOT, AOBT, units = "min") |> as.numeric()
+           ,TXIT = difftime(AIBT, ALDT, units = "min") |> as.numeric()
+           ) |> 
+    select(FT, TXOT, TXIT, contains("FLTID"), contains("TYPE"), ATOT, ALDT, everything()) |> 
+    filter(FT > 0, FT < 600) |> 
+    arrange(FT) 
+```
+
+
