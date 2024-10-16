@@ -23,7 +23,7 @@ EDDF, EDDM, EGLL, EHAM, LEMD, LFPG, LIRF, LSZH, LTFM
 ```{r}
 source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
 
-apt <- "EHAM"
+apt <- "LFPG"
 
 fn_2022 <- check_zip_content(pth_apdf,"apdf-2022.zip") |> 
     filter(grepl(pattern = apt, x = Name))
