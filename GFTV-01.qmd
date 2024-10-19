@@ -94,3 +94,202 @@ zggg_wsss <- chn_ds |>
 ```
 
 
+```{r}
+sin_mik <-  sin_arrs |> rename(FLTID = Callsign, REG = `Aircraft Registration`) |> select(FLTID, REG, ADEP, ALDT = ATA, AIBT, SIBT, A100 = `A100 Fix Time`) |> filter(ADEP == "ZGGG")
+
+chn_mik <- chn_smpl |> select(FLTID = `FLIGHT NUMBER`, TYPE = `ACFT TYPE`, REG, ADEP, ADES, AOBT, ATOT, ALDT_CHN = ALDT, AIBT_CHN = AIBT) |> mutate(across(.cols = c("AOBT","ATOT","ALDT_CHN","AIBT_CHN"), .fns = ~ ymd_hm(.x, tz = "Etc/GMT-8")))
+
+```
+
+```{r}
+delta_time <- function(time2, time1){
+    dt <- difftime(time2, time1, units = "min") |> as.numeric()
+    dt
+}
+chn_sin <- chn_mik |> 
+    left_join(sin_mik, join_by(FLTID, REG, ADEP)) |> 
+    mutate(FT = difftime(ALDT, ATOT, units = "min") |> as.numeric()) |> 
+    select(FT, FLTID, everything()) |> filter(FT > 0, FT < 500) |> arrange(FT)
+
+chn_sin <- chn_sin |> 
+    mutate( TXOT = delta_time(ATOT, AOBT)
+           ,TXIT = delta_time(AIBT, ALDT)) |> 
+    select(FLTID, TYPE, REG, ADEP, ADES, AOBT, ATOT, ALDT, AIBT, TXOT, FT, TXIT)
+```
+
+```{r}
+chn_sin_var <- chn_sin |> 
+    select(FLTID, TXOT, FT, TXIT) |> 
+    group_by(FLTID) |> 
+    summarise( FLTS = n()
+              ,TXOT_P20 = quantile(TXOT, probs = 0.2, na.rm = TRUE)
+              ,TXOT_P80 = quantile(TXOT, probs = 0.8, na.rm = TRUE)
+              ,FT_P20   = quantile(FT, probs = 0.2, na.rm = TRUE)
+              ,FT_P80   = quantile(FT, probs = 0.8, na.rm = TRUE)
+              ,TXIT_P20 = quantile(TXIT, probs = 0.2, na.rm = TRUE)
+              ,TXIT_P80 = quantile(TXIT, probs = 0.8, na.rm = TRUE)
+              )
+chn_sin_var
+```
+
+```{r}
+chn_sin |> arrange(ATOT) |> 
+    pivot_longer(cols = c(TXOT, FT, TXIT), names_to = "PHASE", values_to = "TIME") |>
+    mutate(PHASE = factor(PHASE, levels = c("TXOT","FT","TXIT"))) |> 
+    
+    ggplot() + 
+    geom_path(aes(x = date(ATOT), y = TIME, group = PHASE)) + 
+    facet_wrap(.~PHASE) + 
+    labs(x = element_blank(), y = "minutes")
+
+chn_sin |> arrange(ATOT) |> 
+    pivot_longer(cols = c(TXOT, FT, TXIT), names_to = "PHASE", values_to = "TIME") |>
+    mutate(PHASE = factor(PHASE, levels = c("TXOT","FT","TXIT"))) |> 
+    
+    ggplot() +
+    geom_boxplot(aes(x = PHASE, y = TIME))
+```
+
+
+
+EGLL - WSSS
+
+
+```{r}
+#| label: setup
+#| echo: false
+#| message: false
+source("_chapter-defaults.R")
+
+library(tidyverse)
+
+# path to data
+pth_data <- here::here() |> dirname()
+pth_apdf <- here::here(pth_data, "__DATA","APDF")
+```
+
+EDDF, EDDM, EGLL, EHAM, LEMD, LFPG, LIRF, LSZH, LTFM
+
+load EUR
+```{r}
+source("~/RProjects/PBWG-2024-Xian/R/apdf-nice-names.R")
+
+apt <- "EGLL"
+
+fn_2024 <- check_zip_content(pth_apdf,"apdf-2024-JanSep.zip") |>
+    filter(grepl(pattern = apt, x = Name))
+ds_2024 <- read_zip(pth_apdf, "apdf-2024-JanSep.zip", fn_2024$Name) |>
+    trim_apdf_for_pbwg() |>
+    make_nice_names_apdf() |>
+    append_dof()
+```
+
+subset to Jun/Jul and ADEP/ADES
+
+```{r}
+ds_2024 <- ds_2024 |> 
+    filter(between(DOF, ymd("2024-06-14"), ymd("2024-07-16")))
+
+ds_arrs <- ds_2024 |> filter(ADEP == "WSSS") |> 
+    select(FLTID, REG, ADEP, ADES, TYPE = ARCTYP, SIBT = SCHED_TIME, AIBT = BLOCK_TIME, ALDT = MVT_TIME, A100T = C100_TIME)
+
+ds_deps <- ds_2024 |> filter(ADES == "WSSS") |> 
+    select(FLTID, REG, ADEP, ADES, TYPE = ARCTYP, SOBT = SCHED_TIME, AOBT = BLOCK_TIME, ATOT = MVT_TIME, D100T = C100_TIME)
+
+sin_arrs_trim <- sin_arrs |> rename(
+    FLTID = Callsign, TYPE = `Aircraft Type`, ALDT = ATA, REG = `Aircraft Registration` 
+    ) |> 
+    filter(ADEP == apt) |> 
+    select(FLTID, REG, ADEP, TYPE, A100T = `A100 Fix Time`, ALDT, AIBT, SIBT)
+#sin_deps
+
+```
+
+```{r}
+outs <- ds_deps |> left_join(sin_arrs_trim) |> 
+    mutate(FT = delta_time(ALDT, ATOT)) |> 
+    filter(between(FT, 0, 18 * 60)) 
+
+outs2 <- outs |> mutate(TXOT = delta_time(ATOT, AOBT) ,D100   = delta_time(D100T, ATOT)
+               ,V100   = delta_time(A100T, D100T)
+               ,A100   = delta_time(ALDT, A100T),TXIT   = delta_time(AIBT, ALDT)
+               ,IB_DLY = delta_time(AIBT, SIBT)
+               ,SFT    = delta_time(SIBT, SOBT)) |> 
+    select(FLTID, TYPE, REG, ADEP, ADES, SFT, FT, TXOT, D100, V100, A100, TXIT, AOBT, ATOT, ALDT, AIBT)
+
+outs_var <-  outs2 |> 
+    select(FLTID, TXOT, FT, TXIT) |> 
+    group_by(FLTID) |> 
+    summarise( FLTS = n()
+              ,TXOT_P20 = quantile(TXOT, probs = 0.2, na.rm = TRUE)
+              ,TXOT_P80 = quantile(TXOT, probs = 0.8, na.rm = TRUE)
+              ,FT_P20   = quantile(FT, probs = 0.2, na.rm = TRUE)
+              ,FT_P80   = quantile(FT, probs = 0.8, na.rm = TRUE)
+              ,TXIT_P20 = quantile(TXIT, probs = 0.2, na.rm = TRUE)
+              ,TXIT_P80 = quantile(TXIT, probs = 0.8, na.rm = TRUE)
+              )
+```
+
+outs2 |> arrange(ATOT) |> 
+    pivot_longer(cols = c(TXOT, A100, V100, D100, TXIT), names_to = "PHASE", values_to = "TIME") |>
+    mutate(PHASE = factor(PHASE, levels = c("TXOT","A100","V100","D100","TXIT"))) |> 
+    
+    ggplot() +
+    geom_boxplot(aes(x = PHASE, y = TIME))
+
+
+```{r}
+outs2 |> 
+    select(FLTID, SFT, FT) |> 
+    pivot_longer(cols = SFT:FT, names_to = "WHAT", values_to = "TIME") |> 
+    ggplot() + geom_boxplot(aes(y = FLTID, x = TIME, group = FLTID)) + 
+    facet_wrap(. ~ WHAT) + labs(y = element_blank(), x = "actual vs scheduled time")
+```
+
+ggsave("figures/gftv-boxplot-egll-wsss.png", width = 8, height = 6, dpi = 320, bg="white")
+
+```{r}
+outs2 |> arrange(AOBT) |> 
+    pivot_longer(cols = c(TXOT, D100, V100, A100, TXIT), names_to = "PHASE", values_to = "TIME") |>
+    mutate(PHASE = factor(PHASE, levels = c("TXOT","D100","V100","A100","TXIT"))) |> 
+    
+    ggplot() + 
+    geom_path(aes(x = date(ATOT), y = TIME, group = PHASE)) + 
+    facet_wrap(.~PHASE, ncol = 5) + 
+    labs(x = element_blank(), y = "minutes")
+```
+
+ggsave("figures/gftv-phase-timeplot-egll-wsss.png", width = 8, height = 6, dpi = 320, bg="white")
+
+```{r}
+outs2_var = outs2 |>
+    select(FLTID, TXOT, SFT, FT, TXOT, D100, V100, A100, TXIT) |> 
+    group_by(FLTID) |> 
+    summarise( FLTS = n()
+               ,SFT_P20 = quantile(SFT, probs = 0.2, na.rm = TRUE)
+               ,SFT_P80 = quantile(SFT, probs = 0.8, na.rm = TRUE)
+               ,FT_P20   = quantile(FT, probs = 0.2, na.rm = TRUE)
+               ,FT_P80   = quantile(FT, probs = 0.8, na.rm = TRUE)
+               ,TXOT_P20 = quantile(TXOT, probs = 0.2, na.rm = TRUE)
+               ,TXOT_P80 = quantile(TXOT, probs = 0.8, na.rm = TRUE)
+               ,D100_P20 = quantile(D100, probs = 0.2, na.rm = TRUE)
+               ,D100_P80 = quantile(D100, probs = 0.8, na.rm = TRUE)
+               ,V100_P20 = quantile(V100, probs = 0.2, na.rm = TRUE)
+               ,V100_P80 = quantile(V100, probs = 0.8, na.rm = TRUE)
+               ,A100_P20 = quantile(A100, probs = 0.2, na.rm = TRUE)
+               ,A100_P80 = quantile(A100, probs = 0.8, na.rm = TRUE)
+               ,TXIT_P20 = quantile(TXIT, probs = 0.2, na.rm = TRUE)
+               ,TXIT_P80 = quantile(TXIT, probs = 0.8, na.rm = TRUE)
+    ) |> mutate( TXOT_VAR = (TXOT_P80 - TXOT_P20)/2
+                ,D100_VAR = (D100_P80 - D100_P20)/2
+                ,V100_VAR = (V100_P80 - V100_P20)/2
+                ,A100_VAR = (A100_P80 - A100_P20)/2
+                ,TXIT_VAR = (TXIT_P80 - TXIT_P20)/2
+                ) 
+```
+
+```{r}
+outs2_var |> select(FLTID, FLTS, contains("_VAR")) |> filter(FLTS != 1)  |> pivot_longer(cols = contains("VAR"), names_to = "PHASE", values_to = "VAR") |> mutate(PHASE = factor(PHASE, levels = c("TXOT_VAR", "D100_VAR", "V100_VAR", "A100_VAR", "TXIT_VAR"))) |> ggplot(aes(x = PHASE, y = VAR, color = FLTID)) + geom_point() + geom_line(aes(group = FLTID)) + labs(x = element_blank(), y = "variation [min]")
+```
+
+ggsave("figures/gftv-phase-variation-egll-wsss.png", width = 8, height = 6, dpi = 320, bg="white")

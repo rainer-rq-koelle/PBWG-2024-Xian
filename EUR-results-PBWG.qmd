@@ -368,10 +368,8 @@ daily_dsma <- dsmas |>
     mutate(AVG_DSMA = TOT_ADD / FLTS)
 
 # smooth
-txits <- txits |> 
-    mutate(AVG_ADD_SM = zoo::rollmean(AVG_ADD_TIME, k = 7, fill = NA)
-           , AVG_ADD_SM = ifelse(is.na(AVG_ADD_SM), AVG_ADD_TIME, AVG_ADD_SM)
-           ) |> 
+# smooth
+daily_dsma <- daily_dsma |> mutate( AVG_DSMA_SM = zoo::rollmean(AVG_DSMA, k = 7, fill = NA), ,AVG_DSMA_SM = ifelse(is.na(AVG_DSMA_SM), AVG_DSMA, AVG_DSMA_SM)) |>
     filter(between(DATE, ymd("2022-01-02"),ymd("2024-08-28")))
 
 daily_dsma |> 
@@ -380,3 +378,29 @@ daily_dsma |>
     facet_wrap(. ~ ICAO) +
     labs(x = element_blank(), y = "avg. add. DSMA time")
 ```
+
+```{r}
+dsmas_annual_with_partialyear <- daily_dsma |> 
+  #  filter(ICAO %in% c("EDDF")) |> 
+    mutate(YEAR = year(DATE), MOF = month(DATE), MOF_CUT = MOF > 8) |> 
+    group_by(ICAO, YEAR, MOF_CUT) |> 
+    reframe(FLTS = sum(FLTS, na.rm = TRUE)
+            , TOT_ADD = sum(TOT_ADD, na.rm = TRUE) ) |> 
+    mutate(AVG_ADD_TIME = TOT_ADD / FLTS)
+
+dsmas_annual_with_partialyear |> 
+    mutate(YEAR = as.character(YEAR)) |> 
+    ggplot() + 
+    geom_col(aes(x = YEAR, y = AVG_ADD_TIME, group = YEAR, fill = MOF_CUT)
+             , position = position_dodge2(preserve = "single")) + 
+    facet_wrap(. ~ ICAO) + 
+    scale_fill_manual(name = element_blank()
+                      , labels = c("JAN-AUG", "SEP-DEC")
+                      , values = c("blue", "navy")
+                      ) + 
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = element_blank(), y = element_blank()) 
+```
+
+ggsave("figures/apt-EUR-dsma-annual-partial.png", width = 8, height = 6, dpi = 320, bg = "white")
+
